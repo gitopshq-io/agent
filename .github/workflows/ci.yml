@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Setup Buf
+        uses: bufbuild/buf-setup-action@v1
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Render Helm chart
+        run: helm template gitopshq-agent ./charts/gitopshq-agent >/tmp/gitopshq-agent-chart.yaml
+
+      - name: Lint proto
+        run: buf lint
+
+      - name: Check proto compatibility
+        if: github.event_name == 'pull_request'
+        run: buf breaking --against '.git#branch=main'
+
+      - name: Build container smoke test
+        run: docker build -t gitopshq-agent:test .

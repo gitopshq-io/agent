@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gitopshq-agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "gitopshq-agent.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "gitopshq-agent.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "gitopshq-agent.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+{{- with .Values.podAnnotations }}
+      annotations:
+{{ toYaml . | indent 8 }}
+{{- end }}
+    spec:
+{{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | indent 8 }}
+{{- end }}
+{{- with .Values.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+{{- end }}
+      serviceAccountName: {{ include "gitopshq-agent.serviceAccountName" . }}
+      volumes:
+        - name: agent-data
+          emptyDir: {}
+      containers:
+        - name: agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+{{- with .Values.securityContext }}
+          securityContext:
+{{ toYaml . | indent 12 }}
+{{- end }}
+          volumeMounts:
+            - name: agent-data
+              mountPath: /var/lib/gitopshq
+          env:
+            - name: GITOPSHQ_HUB_ADDRESS
+              value: {{ .Values.hub.address | quote }}
+            - name: GITOPSHQ_STATUS_INTERVAL_SECONDS
+              value: {{ .Values.hub.statusIntervalSeconds | quote }}
+            - name: GITOPSHQ_REGISTRATION_TOKEN
+              value: {{ .Values.registrationToken | quote }}
+            - name: GITOPSHQ_AGENT_TOKEN_PATH
+              value: {{ .Values.agent.tokenPath | quote }}
+            - name: GITOPSHQ_HUB_INSECURE
+              value: {{ .Values.tls.insecure | quote }}
+            - name: GITOPSHQ_HUB_SERVER_NAME
+              value: {{ .Values.tls.serverName | quote }}
+            - name: GITOPSHQ_HUB_CA_CERT
+              value: {{ .Values.tls.caCertPath | quote }}
+            - name: GITOPSHQ_CLUSTER_NAME
+              value: {{ .Values.agent.clusterName | quote }}
+            - name: GITOPSHQ_CLUSTER_DISPLAY_NAME
+              value: {{ .Values.agent.displayName | quote }}
+            - name: GITOPSHQ_CLUSTER_PROVIDER
+              value: {{ .Values.agent.provider | quote }}
+            - name: GITOPSHQ_CLUSTER_REGION
+              value: {{ .Values.agent.region | quote }}
+            - name: GITOPSHQ_CLUSTER_ENVIRONMENT
+              value: {{ .Values.agent.environment | quote }}
+            - name: GITOPSHQ_AGENT_VERSION
+              value: {{ .Values.agent.version | quote }}
+            - name: GITOPSHQ_CAPABILITIES
+              value: {{ include "gitopshq-agent.capabilities" . | quote }}
+            - name: GITOPSHQ_ARGOCD_SERVER
+              value: {{ .Values.argocd.server | quote }}
+            - name: GITOPSHQ_ARGOCD_TOKEN
+              value: {{ .Values.argocd.token | quote }}
+            - name: GITOPSHQ_ARGOCD_INSECURE
+              value: {{ .Values.argocd.insecure | quote }}
+            - name: GITOPSHQ_CREDENTIAL_SYNC_MODE
+              value: {{ .Values.credentialSync.mode | quote }}
+            - name: GITOPSHQ_CREDENTIAL_SYNC_TARGETS
+              value: {{ join "," .Values.credentialSync.targets | quote }}
+            - name: GITOPSHQ_KUBECONFIG
+              value: {{ .Values.directDeploy.kubeconfigPath | quote }}
+            - name: GITOPSHQ_DIRECT_DEPLOY_DEFAULT_NAMESPACE
+              value: {{ .Values.directDeploy.defaultNamespace | quote }}
+            - name: GITOPSHQ_DIRECT_DEPLOY_FIELD_MANAGER
+              value: {{ .Values.directDeploy.fieldManager | quote }}
+            - name: GITOPSHQ_DIRECT_DEPLOY_FORCE_OWNERSHIP
+              value: {{ .Values.directDeploy.forceOwnership | quote }}
+            - name: GITOPSHQ_DIRECT_DEPLOY_WORKDIR
+              value: {{ .Values.directDeploy.workDir | quote }}
+            - name: HTTP_PROXY
+              value: {{ .Values.proxy.httpProxy | quote }}
+            - name: HTTPS_PROXY
+              value: {{ .Values.proxy.httpsProxy | quote }}
+            - name: NO_PROXY
+              value: {{ .Values.proxy.noProxy | quote }}
+{{- with .Values.resources }}
+          resources:
+{{ toYaml . | indent 12 }}
+{{- end }}

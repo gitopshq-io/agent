@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package agent.v1;
+
+service AgentHub {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Connect(stream AgentEnvelope) returns (stream HubEnvelope);
+}
+
+message RegisterRequest {
+  string registration_token = 1;
+  ClusterInfo cluster = 2;
+}
+
+message RegisterResponse {
+  string agent_token = 1;
+  string cluster_id = 2;
+  int32 status_interval_seconds = 3;
+}
+
+message AgentEnvelope {}
+
+message HubEnvelope {}
