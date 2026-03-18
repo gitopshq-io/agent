@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	Hub            HubConfig
+	Identity       IdentityConfig
 	Agent          AgentConfig
 	ArgoCD         ArgoCDConfig
 	CredentialSync CredentialSyncConfig
@@ -22,7 +23,13 @@ type HubConfig struct {
 	Insecure          bool
 	StatusInterval    time.Duration
 	RegistrationToken string
-	AgentTokenPath    string
+}
+
+type IdentityConfig struct {
+	Mode            string
+	FilePath        string
+	SecretName      string
+	SecretNamespace string
 }
 
 type AgentConfig struct {
@@ -61,7 +68,12 @@ func Load() Config {
 			Insecure:          envBoolOrDefault("GITOPSHQ_HUB_INSECURE", false),
 			StatusInterval:    time.Duration(envIntOrDefault("GITOPSHQ_STATUS_INTERVAL_SECONDS", 30)) * time.Second,
 			RegistrationToken: envOrDefault("GITOPSHQ_REGISTRATION_TOKEN", ""),
-			AgentTokenPath:    envOrDefault("GITOPSHQ_AGENT_TOKEN_PATH", "/tmp/gitopshq-agent-token"),
+		},
+		Identity: IdentityConfig{
+			Mode:            strings.ToLower(envOrDefault("GITOPSHQ_IDENTITY_STORE_MODE", "file")),
+			FilePath:        envOrDefault("GITOPSHQ_AGENT_TOKEN_PATH", "/tmp/gitopshq-agent-token"),
+			SecretName:      envOrDefault("GITOPSHQ_IDENTITY_SECRET_NAME", ""),
+			SecretNamespace: envOrDefault("GITOPSHQ_IDENTITY_SECRET_NAMESPACE", ""),
 		},
 		Agent: AgentConfig{
 			ClusterName:  envOrDefault("GITOPSHQ_CLUSTER_NAME", "default"),
@@ -95,8 +107,6 @@ func (c Config) Validate() error {
 	switch {
 	case c.Hub.Address == "":
 		return fmt.Errorf("hub address is required")
-	case c.Hub.AgentTokenPath == "":
-		return fmt.Errorf("agent token path is required")
 	case c.Agent.ClusterName == "":
 		return fmt.Errorf("cluster name is required")
 	case c.Hub.StatusInterval <= 0:
@@ -105,6 +115,14 @@ func (c Config) Validate() error {
 		return fmt.Errorf("direct deploy field manager is required")
 	case c.DirectDeploy.WorkDir == "":
 		return fmt.Errorf("direct deploy workdir is required")
+	case c.Identity.Mode != "file" && c.Identity.Mode != "secret":
+		return fmt.Errorf("identity store mode must be one of: file, secret")
+	case c.Identity.Mode == "file" && c.Identity.FilePath == "":
+		return fmt.Errorf("agent token path is required when using file identity store")
+	case c.Identity.Mode == "secret" && c.Identity.SecretName == "":
+		return fmt.Errorf("identity secret name is required when using secret identity store")
+	case c.Identity.Mode == "secret" && c.Identity.SecretNamespace == "":
+		return fmt.Errorf("identity secret namespace is required when using secret identity store")
 	default:
 		return nil
 	}

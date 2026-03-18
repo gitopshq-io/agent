@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	sourceadapter "github.com/gitopshq-io/agent/internal/adapter/source"
 	"github.com/gitopshq-io/agent/internal/domain"
 	cfgpkg "github.com/gitopshq-io/agent/internal/platform/config"
+	"github.com/gitopshq-io/agent/internal/port"
 	"github.com/gitopshq-io/agent/internal/usecase"
 )
 
@@ -42,7 +45,26 @@ func main() {
 	}
 
 	hub := hubgrpc.New(cfg.Hub)
-	identityStore := runtimeadapter.FileIdentityStore{Path: cfg.Hub.AgentTokenPath}
+	argocdClient := argocd.New(cfg.ArgoCD)
+	switch {
+	case cfg.ArgoCD.ServerURL == "":
+		slog.Info("argocd integration disabled", "reason", "GITOPSHQ_ARGOCD_SERVER is empty")
+	case cfg.ArgoCD.Token == "":
+		slog.Warn("argocd integration is enabled without a token", "server", cfg.ArgoCD.ServerURL, "insecure", cfg.ArgoCD.Insecure)
+	default:
+		slog.Info("argocd integration enabled", "server", cfg.ArgoCD.ServerURL, "insecure", cfg.ArgoCD.Insecure)
+	}
+	kubeClient, err := kubernetes.New(cfg.DirectDeploy)
+	if err != nil {
+		slog.Error("failed to initialize kubernetes runtime", "error", err)
+		os.Exit(1)
+	}
+	identityStore, identityLocation, err := buildIdentityStore(cfg, kubeClient)
+	if err != nil {
+		slog.Error("failed to initialize identity store", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("agent identity store configured", "mode", cfg.Identity.Mode, "location", identityLocation)
 	register := usecase.Register{Transport: hub, Store: identityStore}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -52,7 +74,7 @@ func main() {
 	statusInterval := cfg.Hub.StatusInterval
 	if err != nil {
 		if cfg.Hub.RegistrationToken == "" {
-			slog.Error("agent identity is missing and no registration token was provided", "path", cfg.Hub.AgentTokenPath)
+			slog.Error("agent identity is missing and no registration token was provided", "store", cfg.Identity.Mode, "location", identityLocation)
 			os.Exit(1)
 		}
 		resp, regErr := register.Run(ctx, cfg.Hub.RegistrationToken, cluster)
@@ -68,13 +90,6 @@ func main() {
 			statusInterval = resp.StatusInterval
 		}
 		slog.Info("agent registered", "clusterId", resp.ClusterID)
-	}
-
-	argocdClient := argocd.New(cfg.ArgoCD)
-	kubeClient, err := kubernetes.New(cfg.DirectDeploy)
-	if err != nil {
-		slog.Error("failed to initialize kubernetes runtime", "error", err)
-		os.Exit(1)
 	}
 	sourceLoader := sourceadapter.Loader{
 		WorkDir: cfg.DirectDeploy.WorkDir,
@@ -131,4 +146,23 @@ func parseCapabilities(values []string) []domain.Capability {
 		out = append(out, domain.Capability(value))
 	}
 	return out
+}
+
+func buildIdentityStore(cfg cfgpkg.Config, kubeClient *kubernetes.Client) (port.IdentityStore, string, error) {
+	switch cfg.Identity.Mode {
+	case "file":
+		return runtimeadapter.FileIdentityStore{Path: cfg.Identity.FilePath}, cfg.Identity.FilePath, nil
+	case "secret":
+		namespace := strings.TrimSpace(cfg.Identity.SecretNamespace)
+		if namespace == "" {
+			return nil, "", fmt.Errorf("identity secret namespace is required for secret identity store")
+		}
+		return runtimeadapter.SecretIdentityStore{
+			Client:     kubeClient.TypedClient(),
+			Namespace:  namespace,
+			SecretName: cfg.Identity.SecretName,
+		}, namespace + "/" + cfg.Identity.SecretName, nil
+	default:
+		return nil, "", fmt.Errorf("unsupported identity store mode %q", cfg.Identity.Mode)
+	}
 }

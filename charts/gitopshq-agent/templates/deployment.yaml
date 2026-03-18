@@ -8,6 +8,10 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: 1
+{{- if and .Values.persistence.enabled (eq .Values.persistence.type "pvc") }}
+  strategy:
+    type: Recreate
+{{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "gitopshq-agent.name" . }}
@@ -33,7 +37,12 @@ spec:
       serviceAccountName: {{ include "gitopshq-agent.serviceAccountName" . }}
       volumes:
         - name: agent-data
+{{- if and .Values.persistence.enabled (eq .Values.persistence.type "pvc") }}
+          persistentVolumeClaim:
+            claimName: {{ default (include "gitopshq-agent.fullname" .) .Values.persistence.existingClaim }}
+{{- else }}
           emptyDir: {}
+{{- end }}
       containers:
         - name: agent
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -52,6 +61,19 @@ spec:
               value: {{ .Values.hub.statusIntervalSeconds | quote }}
             - name: GITOPSHQ_REGISTRATION_TOKEN
               value: {{ .Values.registrationToken | quote }}
+            - name: GITOPSHQ_IDENTITY_STORE_MODE
+{{- if and .Values.persistence.enabled (eq .Values.persistence.type "secret") }}
+              value: "secret"
+{{- else }}
+              value: "file"
+{{- end }}
+            - name: GITOPSHQ_IDENTITY_SECRET_NAME
+              value: {{ include "gitopshq-agent.identitySecretName" . | quote }}
+            - name: GITOPSHQ_IDENTITY_SECRET_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
             - name: GITOPSHQ_AGENT_TOKEN_PATH
               value: {{ .Values.agent.tokenPath | quote }}
             - name: GITOPSHQ_HUB_INSECURE

@@ -26,7 +26,7 @@ This repository is Apache 2.0 licensed and is intended to be published independe
 
 - The hub remains authoritative for RBAC, approvals, and policy decisions.
 - The agent still performs local enforcement before execution: command capability, expiry, and immutable `spec_hash` must all pass.
-- Durable agent identity is stored locally as token plus cluster identity so reconnects keep emitting stable heartbeats.
+- Durable agent identity is stored locally as token plus cluster identity so reconnects keep emitting stable heartbeats. The Helm chart persists this by default in a Kubernetes Secret.
 - Direct deploy permissions are opt-in through chart RBAC and capability flags; the default chart remains read-only.
 
 ## Helm Install
@@ -58,6 +58,7 @@ Important chart values:
 
 - `hub.address`, `hub.statusIntervalSeconds`
 - `agent.clusterName`, `agent.displayName`, `agent.provider`, `agent.region`, `agent.environment`
+- `persistence.*`
 - `rbac.profile`
 - `capabilities.*`
 - `credentialSync.mode`, `credentialSync.targets`
@@ -66,6 +67,16 @@ Important chart values:
 - `directDeploy.forceOwnership`
 - `tls.insecure`
 - `proxy.*`
+
+Troubleshooting:
+
+- Agent logs are emitted as JSON to stdout. For a live view:
+  `kubectl logs -n gitopshq-system deploy/gitopshq-agent -f`
+- ArgoCD collection failures now appear as `failed to collect argocd applications`.
+- On startup the agent logs whether ArgoCD integration is enabled, disabled, or missing a token.
+- Registration tokens are one-time bootstrap tokens. After the first successful join, upgrades should reuse the persisted agent identity and no longer require `registrationToken`.
+- Default persistence mode is `secret`. Use `persistence.type=pvc` if you prefer a volume-backed identity file, or `persistence.enabled=false` for ephemeral dev/test installs.
+- Upgrading from older chart revisions that used `emptyDir` requires one final upgrade with a fresh `registrationToken` so the new persistent identity store can be seeded.
 
 ## Local Development
 

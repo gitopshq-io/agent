@@ -11,6 +11,16 @@ serviceAccount:
   create: true
   name: ""
 
+persistence:
+  enabled: true
+  type: secret
+  secretName: ""
+  existingClaim: ""
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 128Mi
+
 podAnnotations: {}
 podSecurityContext:
   fsGroup: 65532

@@ -39,6 +39,7 @@ const (
 
 type Client struct {
 	typed            kubernetes.Interface
+	discovery        discovery.DiscoveryInterface
 	dynamic          dynamic.Interface
 	mapper           *restmapper.DeferredDiscoveryRESTMapper
 	fieldManager     string
@@ -66,6 +67,7 @@ func New(cfg cfgpkg.DirectDeployConfig) (*Client, error) {
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(discoveryClient))
 	return &Client{
 		typed:            typedClient,
+		discovery:        discoveryClient,
 		dynamic:          dynamicClient,
 		mapper:           mapper,
 		fieldManager:     cfg.FieldManager,
@@ -75,8 +77,13 @@ func New(cfg cfgpkg.DirectDeployConfig) (*Client, error) {
 }
 
 func NewWithClients(typedClient kubernetes.Interface, dynamicClient dynamic.Interface, mapper *restmapper.DeferredDiscoveryRESTMapper, defaultNamespace, fieldManager string) *Client {
+	var discoveryClient discovery.DiscoveryInterface
+	if typedClient != nil {
+		discoveryClient = typedClient.Discovery()
+	}
 	return &Client{
 		typed:            typedClient,
+		discovery:        discoveryClient,
 		dynamic:          dynamicClient,
 		mapper:           mapper,
 		fieldManager:     defaultString(fieldManager, "gitopshq-agent"),
@@ -116,6 +123,10 @@ func resolveDefaultNamespace(configured string) string {
 
 func (c *Client) DefaultNamespace() string {
 	return c.defaultNamespace
+}
+
+func (c *Client) TypedClient() kubernetes.Interface {
+	return c.typed
 }
 
 func (c *Client) CollectInventory(ctx context.Context) (*domain.InventorySnapshot, error) {
@@ -200,15 +211,27 @@ func (c *Client) CollectInventory(ctx context.Context) (*domain.InventorySnapsho
 	return &domain.InventorySnapshot{
 		Timestamp: time.Now().UTC(),
 		Summary: domain.InventorySummary{
-			ClusterName:     "kubernetes",
-			NamespaceCount:  len(namespaces.Items),
-			NodeCount:       len(nodes.Items),
-			ReadyNodeCount:  readyNodeCount,
-			PodCount:        len(pods.Items),
-			DeploymentCount: len(deployments.Items),
+			ClusterName:       "kubernetes",
+			NamespaceCount:    len(namespaces.Items),
+			NodeCount:         len(nodes.Items),
+			ReadyNodeCount:    readyNodeCount,
+			PodCount:          len(pods.Items),
+			DeploymentCount:   len(deployments.Items),
+			KubernetesVersion: c.kubernetesVersion(),
 		},
 		Resources: resources,
 	}, nil
+}
+
+func (c *Client) kubernetesVersion() string {
+	if c.discovery == nil {
+		return ""
+	}
+	info, err := c.discovery.ServerVersion()
+	if err != nil || info == nil {
+		return ""
+	}
+	return strings.TrimSpace(info.GitVersion)
 }
 
 func (c *Client) CollectDrift(_ context.Context) (*domain.DriftReport, error) {

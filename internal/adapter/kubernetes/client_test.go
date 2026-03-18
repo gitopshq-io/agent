@@ -7,8 +7,28 @@ import (
 	"github.com/gitopshq-io/agent/internal/domain"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/version"
+	fakediscovery "k8s.io/client-go/discovery/fake"
 	kubernetesfake "k8s.io/client-go/kubernetes/fake"
 )
+
+func TestCollectInventoryReportsKubernetesVersion(t *testing.T) {
+	clientset := kubernetesfake.NewSimpleClientset()
+	discoveryClient, ok := clientset.Discovery().(*fakediscovery.FakeDiscovery)
+	if !ok {
+		t.Fatalf("expected fake discovery client, got %T", clientset.Discovery())
+	}
+	discoveryClient.FakedServerVersion = &version.Info{GitVersion: "v1.32.1"}
+
+	client := NewWithClients(clientset, nil, nil, "agent-system", "gitopshq-agent")
+	snapshot, err := client.CollectInventory(context.Background())
+	if err != nil {
+		t.Fatalf("CollectInventory() error = %v", err)
+	}
+	if snapshot.Summary.KubernetesVersion != "v1.32.1" {
+		t.Fatalf("expected kubernetes version %q, got %q", "v1.32.1", snapshot.Summary.KubernetesVersion)
+	}
+}
 
 func TestMirrorCredentialsUpsertsAndPrunesManagedSecrets(t *testing.T) {
 	clientset := kubernetesfake.NewSimpleClientset(

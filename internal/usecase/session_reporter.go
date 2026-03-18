@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gitopshq-io/agent/internal/domain"
 	"github.com/gitopshq-io/agent/internal/port"
@@ -27,6 +28,8 @@ func (r SessionReporter) StatusMessages(ctx context.Context, snapshot SessionSna
 	}
 	if snapshotMsg, err := r.Inventory.Run(ctx); err == nil && snapshotMsg != nil {
 		messages = append(messages, domain.AgentMessage{InventorySnapshot: snapshotMsg})
+	} else if err != nil {
+		slog.Warn("failed to collect cluster inventory", "error", err)
 	}
 	if r.Applications != nil {
 		if apps, err := r.Applications.CollectApplications(ctx); err == nil && apps != nil {
@@ -34,10 +37,14 @@ func (r SessionReporter) StatusMessages(ctx context.Context, snapshot SessionSna
 				apps.Timestamp = now(r.Clock)
 			}
 			messages = append(messages, domain.AgentMessage{ApplicationStatus: apps})
+		} else if err != nil {
+			slog.Warn("failed to collect argocd applications", "error", err)
 		}
 	}
 	if drift, err := r.Drift.Run(ctx); err == nil && drift != nil {
 		messages = append(messages, domain.AgentMessage{DriftReport: drift})
+	} else if err != nil {
+		slog.Warn("failed to collect drift report", "error", err)
 	}
 	return messages
 }

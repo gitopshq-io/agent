@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -50,8 +51,12 @@ func (c *Client) CollectApplications(ctx context.Context) (*domain.ArgoApplicati
 		return nil, err
 	}
 	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+	if err != nil {
+		return nil, fmt.Errorf("read argocd applications response: %w", err)
+	}
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("argocd list applications returned %s", resp.Status)
+		return nil, fmt.Errorf("argocd list applications returned %s: %s", resp.Status, compactBody(body))
 	}
 
 	var payload struct {
@@ -82,7 +87,7 @@ func (c *Client) CollectApplications(ctx context.Context) (*domain.ArgoApplicati
 			} `json:"status"`
 		} `json:"items"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, err
 	}
 
@@ -153,11 +158,12 @@ func (c *Client) do(ctx context.Context, commandID, method, path string, body []
 		return domain.CommandResult{}, err
 	}
 	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
 	if resp.StatusCode >= 300 {
 		return domain.CommandResult{
 			CommandID: commandID,
 			Status:    domain.CommandStatusFailed,
-			Error:     resp.Status,
+			Error:     fmt.Sprintf("%s: %s", resp.Status, compactBody(bodyBytes)),
 			Timestamp: time.Now().UTC(),
 		}, nil
 	}
@@ -167,4 +173,16 @@ func (c *Client) do(ctx context.Context, commandID, method, path string, body []
 		Message:   "command executed by argocd adapter",
 		Timestamp: time.Now().UTC(),
 	}, nil
+}
+
+func compactBody(body []byte) string {
+	text := strings.TrimSpace(string(body))
+	if text == "" {
+		return "<empty body>"
+	}
+	text = strings.Join(strings.Fields(text), " ")
+	if len(text) > 256 {
+		return text[:256] + "..."
+	}
+	return text
 }

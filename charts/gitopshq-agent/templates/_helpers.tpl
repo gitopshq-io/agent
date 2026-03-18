@@ -18,6 +18,14 @@
 {{- end -}}
 {{- end -}}
 
+{{- define "gitopshq-agent.identitySecretName" -}}
+{{- if .Values.persistence.secretName -}}
+{{- .Values.persistence.secretName -}}
+{{- else -}}
+{{- printf "%s-identity" (include "gitopshq-agent.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "gitopshq-agent.capabilities" -}}
 {{- $caps := list -}}
 {{- if .Values.capabilities.observe -}}
