@@ -72,10 +72,12 @@ Troubleshooting:
 
 - Agent logs are emitted as JSON to stdout. For a live view:
   `kubectl logs -n gitopshq-system deploy/gitopshq-agent -f`
-- ArgoCD collection failures now appear as `failed to collect argocd applications`.
-- On startup the agent logs whether ArgoCD integration is enabled, disabled, or missing a token.
+- ArgoCD collection failures now appear as `failed to collect argocd applications`. Successful reads also log `collected argocd applications`.
+- On startup the agent logs whether ArgoCD integration is enabled, disabled, or missing a token, and shows both the raw and normalized ArgoCD server value.
+- If `argocd.server` is provided without `http://` or `https://`, the agent infers `http://` when `argocd.insecure=true` and `https://` otherwise. For plain in-cluster Bitnami installs, `http://argo-cd-server.<namespace>.svc.cluster.local` is the safest explicit value.
 - Registration tokens are one-time bootstrap tokens. After the first successful join, upgrades should reuse the persisted agent identity and no longer require `registrationToken`.
 - Default persistence mode is `secret`. Use `persistence.type=pvc` if you prefer a volume-backed identity file, or `persistence.enabled=false` for ephemeral dev/test installs.
+- Chart releases now default the agent image tag to the chart `appVersion` instead of `latest`, so upgrades pull the matching released image instead of reusing a cached stale image.
 - Upgrading from older chart revisions that used `emptyDir` requires one final upgrade with a fresh `registrationToken` so the new persistent identity store can be seeded.
 
 ## Local Development

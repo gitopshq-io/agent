@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/gitopshq-io/agent/internal/domain"
 	"github.com/gitopshq-io/agent/internal/port"
@@ -24,5 +25,6 @@ func (u Register) Run(ctx context.Context, registrationToken string, cluster dom
 	}); err != nil {
 		return domain.RegisterResponse{}, fmt.Errorf("persist agent identity: %w", err)
 	}
+	slog.Info("persisted agent identity after registration", "clusterId", resp.ClusterID)
 	return resp, nil
 }

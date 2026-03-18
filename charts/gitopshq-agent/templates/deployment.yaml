@@ -45,7 +45,7 @@ spec:
 {{- end }}
       containers:
         - name: agent
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ include "gitopshq-agent.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
 {{- with .Values.securityContext }}
           securityContext:

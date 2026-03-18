@@ -45,14 +45,15 @@ func main() {
 	}
 
 	hub := hubgrpc.New(cfg.Hub)
+	normalizedArgoServer := argocd.NormalizeServerURL(cfg.ArgoCD.ServerURL, cfg.ArgoCD.Insecure)
 	argocdClient := argocd.New(cfg.ArgoCD)
 	switch {
-	case cfg.ArgoCD.ServerURL == "":
-		slog.Info("argocd integration disabled", "reason", "GITOPSHQ_ARGOCD_SERVER is empty")
+	case normalizedArgoServer == "":
+		slog.Info("argocd integration disabled", "reason", "GITOPSHQ_ARGOCD_SERVER is empty", "capabilityEnabled", hasCapability(cluster.Capabilities, domain.CapabilityArgoCDRead) || hasCapability(cluster.Capabilities, domain.CapabilityArgoCDWrite))
 	case cfg.ArgoCD.Token == "":
-		slog.Warn("argocd integration is enabled without a token", "server", cfg.ArgoCD.ServerURL, "insecure", cfg.ArgoCD.Insecure)
+		slog.Warn("argocd integration is enabled without a token", "server", normalizedArgoServer, "rawServer", cfg.ArgoCD.ServerURL, "insecure", cfg.ArgoCD.Insecure)
 	default:
-		slog.Info("argocd integration enabled", "server", cfg.ArgoCD.ServerURL, "insecure", cfg.ArgoCD.Insecure)
+		slog.Info("argocd integration enabled", "server", normalizedArgoServer, "rawServer", cfg.ArgoCD.ServerURL, "insecure", cfg.ArgoCD.Insecure)
 	}
 	kubeClient, err := kubernetes.New(cfg.DirectDeploy)
 	if err != nil {
@@ -74,9 +75,10 @@ func main() {
 	statusInterval := cfg.Hub.StatusInterval
 	if err != nil {
 		if cfg.Hub.RegistrationToken == "" {
-			slog.Error("agent identity is missing and no registration token was provided", "store", cfg.Identity.Mode, "location", identityLocation)
+			slog.Error("agent identity is missing and no registration token was provided", "store", cfg.Identity.Mode, "location", identityLocation, "error", err)
 			os.Exit(1)
 		}
+		slog.Warn("persisted agent identity was not available; attempting bootstrap registration", "store", cfg.Identity.Mode, "location", identityLocation, "error", err)
 		resp, regErr := register.Run(ctx, cfg.Hub.RegistrationToken, cluster)
 		if regErr != nil {
 			slog.Error("agent registration failed", "error", regErr)
@@ -89,7 +91,9 @@ func main() {
 		if resp.StatusInterval > 0 {
 			statusInterval = resp.StatusInterval
 		}
-		slog.Info("agent registered", "clusterId", resp.ClusterID)
+		slog.Info("agent registered", "clusterId", resp.ClusterID, "identityStore", cfg.Identity.Mode, "identityLocation", identityLocation)
+	} else {
+		slog.Info("using persisted agent identity", "clusterId", identity.ClusterID, "identityStore", cfg.Identity.Mode, "identityLocation", identityLocation)
 	}
 	sourceLoader := sourceadapter.Loader{
 		WorkDir: cfg.DirectDeploy.WorkDir,
@@ -146,6 +150,15 @@ func parseCapabilities(values []string) []domain.Capability {
 		out = append(out, domain.Capability(value))
 	}
 	return out
+}
+
+func hasCapability(values []domain.Capability, want domain.Capability) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func buildIdentityStore(cfg cfgpkg.Config, kubeClient *kubernetes.Client) (port.IdentityStore, string, error) {

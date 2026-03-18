@@ -36,6 +36,7 @@ func (r SessionReporter) StatusMessages(ctx context.Context, snapshot SessionSna
 			if apps.Timestamp.IsZero() {
 				apps.Timestamp = now(r.Clock)
 			}
+			slog.Info("collected argocd applications", "count", len(apps.Applications))
 			messages = append(messages, domain.AgentMessage{ApplicationStatus: apps})
 		} else if err != nil {
 			slog.Warn("failed to collect argocd applications", "error", err)

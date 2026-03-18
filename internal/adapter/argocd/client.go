@@ -21,12 +21,30 @@ type Client struct {
 	http    *http.Client
 }
 
+const maxApplicationsResponseBytes = 4 << 20
+
+func NormalizeServerURL(raw string, insecure bool) string {
+	server := strings.TrimSpace(raw)
+	if server == "" {
+		return ""
+	}
+	if strings.Contains(server, "://") {
+		return strings.TrimRight(server, "/")
+	}
+	scheme := "https://"
+	if insecure {
+		scheme = "http://"
+	}
+	return strings.TrimRight(scheme+server, "/")
+}
+
 func New(cfg cfgpkg.ArgoCDConfig) *Client {
-	if cfg.ServerURL == "" {
+	baseURL := NormalizeServerURL(cfg.ServerURL, cfg.Insecure)
+	if baseURL == "" {
 		return nil
 	}
 	return &Client{
-		baseURL: strings.TrimRight(cfg.ServerURL, "/"),
+		baseURL: baseURL,
 		token:   cfg.Token,
 		http: &http.Client{
 			Timeout: 15 * time.Second,
@@ -51,9 +69,13 @@ func (c *Client) CollectApplications(ctx context.Context) (*domain.ArgoApplicati
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+	limited := &io.LimitedReader{R: resp.Body, N: maxApplicationsResponseBytes}
+	body, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, fmt.Errorf("read argocd applications response: %w", err)
+	}
+	if limited.N == 0 {
+		return nil, fmt.Errorf("argocd list applications response exceeded %d bytes", maxApplicationsResponseBytes)
 	}
 	if resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("argocd list applications returned %s: %s", resp.Status, compactBody(body))

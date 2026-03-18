@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gitopshq-io/agent/internal/domain"
@@ -34,7 +35,9 @@ func (s SecretIdentityStore) Load(ctx context.Context) (domain.AgentIdentity, er
 	if !ok || len(payload) == 0 {
 		return domain.AgentIdentity{}, fmt.Errorf("secret %s/%s does not contain %s", s.Namespace, s.SecretName, identitySecretKey)
 	}
-	return decodeIdentity(payload), nil
+	identity := decodeIdentity(payload)
+	slog.Info("loaded agent identity from kubernetes secret", "namespace", s.Namespace, "name", s.SecretName, "clusterId", identity.ClusterID)
+	return identity, nil
 }
 
 func (s SecretIdentityStore) Save(ctx context.Context, identity domain.AgentIdentity) error {
@@ -64,6 +67,7 @@ func (s SecretIdentityStore) Save(ctx context.Context, identity domain.AgentIden
 		if err != nil {
 			return fmt.Errorf("create identity secret %s/%s: %w", s.Namespace, s.SecretName, err)
 		}
+		slog.Info("created agent identity secret", "namespace", s.Namespace, "name", s.SecretName, "clusterId", identity.ClusterID)
 		return nil
 	}
 	if err != nil {
@@ -76,6 +80,7 @@ func (s SecretIdentityStore) Save(ctx context.Context, identity domain.AgentIden
 	if _, err := secrets.Update(ctx, existing, metav1.UpdateOptions{}); err != nil {
 		return fmt.Errorf("update identity secret %s/%s: %w", s.Namespace, s.SecretName, err)
 	}
+	slog.Info("updated agent identity secret", "namespace", s.Namespace, "name", s.SecretName, "clusterId", identity.ClusterID)
 	return nil
 }
 

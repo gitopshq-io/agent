@@ -26,6 +26,10 @@
 {{- end -}}
 {{- end -}}
 
+{{- define "gitopshq-agent.imageTag" -}}
+{{- default .Chart.AppVersion .Values.image.tag -}}
+{{- end -}}
+
 {{- define "gitopshq-agent.capabilities" -}}
 {{- $caps := list -}}
 {{- if .Values.capabilities.observe -}}
