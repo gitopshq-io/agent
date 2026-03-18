@@ -13,6 +13,7 @@ type Capability string
 
 const (
 	CapabilityObserve           Capability = "observe"
+	CapabilityDiagnosticsRead   Capability = "diagnostics.read"
 	CapabilityArgoCDRead        Capability = "argocd.read"
 	CapabilityArgoCDWrite       Capability = "argocd.write"
 	CapabilityDirectDeploy      Capability = "deploy.direct"
@@ -418,7 +419,7 @@ func (c *ExecuteCommand) InferRequiredCapability() Capability {
 	case "run_drift_scan":
 		return CapabilityObserve
 	case "inspect_resource":
-		return CapabilityObserve
+		return CapabilityDiagnosticsRead
 	default:
 		return CapabilityObserve
 	}
@@ -564,7 +565,7 @@ func expectedRequiredCapability(c *ExecuteCommand) Capability {
 	case "run_drift_scan":
 		return CapabilityObserve
 	case "inspect_resource":
-		return CapabilityObserve
+		return CapabilityDiagnosticsRead
 	default:
 		return CapabilityObserve
 	}

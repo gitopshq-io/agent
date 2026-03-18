@@ -58,9 +58,10 @@ type Client struct {
 	fieldManager     string
 	forceOwnership   bool
 	defaultNamespace string
+	diagnosticsScope map[string]struct{}
 }
 
-func New(cfg cfgpkg.DirectDeployConfig) (*Client, error) {
+func New(cfg cfgpkg.DirectDeployConfig, diagnostics cfgpkg.DiagnosticsConfig) (*Client, error) {
 	restConfig, err := loadRESTConfig(cfg.KubeconfigPath)
 	if err != nil {
 		return nil, err
@@ -86,10 +87,11 @@ func New(cfg cfgpkg.DirectDeployConfig) (*Client, error) {
 		fieldManager:     cfg.FieldManager,
 		forceOwnership:   cfg.ForceOwnership,
 		defaultNamespace: resolveDefaultNamespace(cfg.DefaultNamespace),
+		diagnosticsScope: namespaceScope(diagnostics.AllowedNamespaces),
 	}, nil
 }
 
-func NewWithClients(typedClient kubernetes.Interface, dynamicClient dynamic.Interface, mapper *restmapper.DeferredDiscoveryRESTMapper, defaultNamespace, fieldManager string) *Client {
+func NewWithClients(typedClient kubernetes.Interface, dynamicClient dynamic.Interface, mapper *restmapper.DeferredDiscoveryRESTMapper, defaultNamespace, fieldManager string, diagnosticsAllowedNamespaces []string) *Client {
 	var discoveryClient discovery.DiscoveryInterface
 	if typedClient != nil {
 		discoveryClient = typedClient.Discovery()
@@ -102,6 +104,7 @@ func NewWithClients(typedClient kubernetes.Interface, dynamicClient dynamic.Inte
 		fieldManager:     defaultString(fieldManager, "gitopshq-agent"),
 		forceOwnership:   false,
 		defaultNamespace: resolveDefaultNamespace(defaultNamespace),
+		diagnosticsScope: namespaceScope(diagnosticsAllowedNamespaces),
 	}
 }
 
@@ -261,6 +264,9 @@ func (c *Client) InspectResource(ctx context.Context, command domain.InspectReso
 		return nil, fmt.Errorf("inspect resource name is required")
 	}
 	namespace := defaultString(strings.TrimSpace(command.Namespace), c.defaultNamespace)
+	if !c.diagnosticsNamespaceAllowed(namespace) {
+		return nil, fmt.Errorf("namespace %q is outside the configured diagnostics scope", namespace)
+	}
 	includeEvents := command.IncludeEvents
 	includeLogs := command.IncludeLogs
 	if !includeEvents && !includeLogs {
@@ -291,6 +297,32 @@ func (c *Client) InspectResource(ctx context.Context, command domain.InspectReso
 		inspection.Logs = c.inspectLogs(ctx, namespace, pods, command.Container, sanitizeTailLines(command.TailLines))
 	}
 	return inspection, nil
+}
+
+func namespaceScope(namespaces []string) map[string]struct{} {
+	if len(namespaces) == 0 {
+		return nil
+	}
+	scope := make(map[string]struct{}, len(namespaces))
+	for _, namespace := range namespaces {
+		trimmed := strings.TrimSpace(namespace)
+		if trimmed == "" {
+			continue
+		}
+		scope[trimmed] = struct{}{}
+	}
+	if len(scope) == 0 {
+		return nil
+	}
+	return scope
+}
+
+func (c *Client) diagnosticsNamespaceAllowed(namespace string) bool {
+	if len(c.diagnosticsScope) == 0 {
+		return true
+	}
+	_, ok := c.diagnosticsScope[namespace]
+	return ok
 }
 
 func (c *Client) ReadSecretData(ctx context.Context, ref domain.CredentialRef) (map[string][]byte, error) {

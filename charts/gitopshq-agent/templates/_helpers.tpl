@@ -35,6 +35,9 @@
 {{- if .Values.capabilities.observe -}}
 {{- $caps = append $caps "observe" -}}
 {{- end -}}
+{{- if .Values.capabilities.diagnosticsRead -}}
+{{- $caps = append $caps "diagnostics.read" -}}
+{{- end -}}
 {{- if .Values.capabilities.argocdRead -}}
 {{- $caps = append $caps "argocd.read" -}}
 {{- end -}}

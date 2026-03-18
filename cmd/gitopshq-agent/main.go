@@ -56,10 +56,13 @@ func main() {
 	default:
 		slog.Info("argocd integration enabled", "server", normalizedArgoServer, "rawServer", cfg.ArgoCD.ServerURL, "insecure", cfg.ArgoCD.Insecure)
 	}
-	kubeClient, err := kubernetes.New(cfg.DirectDeploy)
+	kubeClient, err := kubernetes.New(cfg.DirectDeploy, cfg.Diagnostics)
 	if err != nil {
 		slog.Error("failed to initialize kubernetes runtime", "error", err)
 		os.Exit(1)
+	}
+	if len(cfg.Diagnostics.AllowedNamespaces) > 0 {
+		slog.Info("diagnostics scope configured", "allowedNamespaces", cfg.Diagnostics.AllowedNamespaces)
 	}
 	argocdClient := argocd.New(cfg.ArgoCD, kubeClient.TypedClient())
 	identityStore, identityLocation, err := buildIdentityStore(cfg, kubeClient)

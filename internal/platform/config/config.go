@@ -13,6 +13,7 @@ type Config struct {
 	Hub            HubConfig
 	Identity       IdentityConfig
 	Agent          AgentConfig
+	Diagnostics    DiagnosticsConfig
 	ArgoCD         ArgoCDConfig
 	CredentialSync CredentialSyncConfig
 	DirectDeploy   DirectDeployConfig
@@ -40,6 +41,10 @@ type AgentConfig struct {
 	Environment  string
 	Version      string
 	Capabilities []string
+}
+
+type DiagnosticsConfig struct {
+	AllowedNamespaces []string
 }
 
 type ArgoCDConfig struct {
@@ -83,6 +88,9 @@ func Load() Config {
 			Environment:  envOrDefault("GITOPSHQ_CLUSTER_ENVIRONMENT", ""),
 			Version:      envOrDefault("GITOPSHQ_AGENT_VERSION", "dev"),
 			Capabilities: splitCSV(envOrDefault("GITOPSHQ_CAPABILITIES", "observe")),
+		},
+		Diagnostics: DiagnosticsConfig{
+			AllowedNamespaces: splitCSV(envOrDefault("GITOPSHQ_DIAGNOSTICS_ALLOWED_NAMESPACES", "")),
 		},
 		ArgoCD: ArgoCDConfig{
 			ServerURL: envOrDefault("GITOPSHQ_ARGOCD_SERVER", ""),

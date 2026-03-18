@@ -55,6 +55,7 @@ rbac:
 
 capabilities:
   observe: true
+  diagnosticsRead: true
   argocdRead: true
   argocdWrite: false
   directDeploy: false
@@ -66,6 +67,9 @@ capabilities:
 credentialSync:
   mode: mirrored
   targets: []
+
+diagnostics:
+  allowedNamespaces: []
 
 argocd:
   server: ""

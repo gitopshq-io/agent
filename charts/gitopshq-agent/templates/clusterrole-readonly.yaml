@@ -9,14 +9,22 @@ metadata:
     gitopshq.io/rbac-profile: {{ .Values.rbac.profile | quote }}
 rules:
   - apiGroups: [""]
-    resources: ["pods", "namespaces", "nodes", "services", "configmaps", "events"]
+    resources: ["pods", "namespaces", "nodes", "services", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+{{- if .Values.capabilities.diagnosticsRead }}
+  - apiGroups: [""]
+    resources: ["events"]
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
   - apiGroups: ["apps"]
-    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    resources: ["replicasets"]
     verbs: ["get", "list", "watch"]
+{{- end }}
 {{- if or .Values.capabilities.directDeploy .Values.capabilities.kubernetesRestart .Values.capabilities.kubernetesScale }}
   - apiGroups: [""]
     resources: ["*"]

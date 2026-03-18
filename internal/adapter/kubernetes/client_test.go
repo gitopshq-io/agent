@@ -20,7 +20,7 @@ func TestCollectInventoryReportsKubernetesVersion(t *testing.T) {
 	}
 	discoveryClient.FakedServerVersion = &version.Info{GitVersion: "v1.32.1"}
 
-	client := NewWithClients(clientset, nil, nil, "agent-system", "gitopshq-agent")
+	client := NewWithClients(clientset, nil, nil, "agent-system", "gitopshq-agent", nil)
 	snapshot, err := client.CollectInventory(context.Background())
 	if err != nil {
 		t.Fatalf("CollectInventory() error = %v", err)
@@ -42,7 +42,7 @@ func TestMirrorCredentialsUpsertsAndPrunesManagedSecrets(t *testing.T) {
 			},
 		},
 	)
-	client := NewWithClients(clientset, nil, nil, "agent-system", "gitopshq-agent")
+	client := NewWithClients(clientset, nil, nil, "agent-system", "gitopshq-agent", nil)
 
 	result, err := client.MirrorCredentials(context.Background(), domain.CredentialSyncRequest{
 		Version: "v2",

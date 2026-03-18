@@ -102,6 +102,8 @@ spec:
               value: {{ .Values.credentialSync.mode | quote }}
             - name: GITOPSHQ_CREDENTIAL_SYNC_TARGETS
               value: {{ join "," .Values.credentialSync.targets | quote }}
+            - name: GITOPSHQ_DIAGNOSTICS_ALLOWED_NAMESPACES
+              value: {{ join "," .Values.diagnostics.allowedNamespaces | quote }}
             - name: GITOPSHQ_KUBECONFIG
               value: {{ .Values.directDeploy.kubeconfigPath | quote }}
             - name: GITOPSHQ_DIRECT_DEPLOY_DEFAULT_NAMESPACE
