@@ -335,130 +335,130 @@ type ExecuteCommand struct {
 }
 
 type CredentialRef struct {
-	Namespace  string
-	SecretName string
-	Key        string
+	Namespace  string `json:"namespace"`
+	SecretName string `json:"secretName"`
+	Key        string `json:"key,omitempty"`
 }
 
 type SourceRef struct {
-	Type             string
-	URL              string
-	ResolvedRevision string
-	ResolvedDigest   string
-	Chart            string
-	Path             string
-	CredentialRef    *CredentialRef
+	Type             string         `json:"type"`
+	URL              string         `json:"url"`
+	ResolvedRevision string         `json:"resolvedRevision,omitempty"`
+	ResolvedDigest   string         `json:"resolvedDigest,omitempty"`
+	Chart            string         `json:"chart,omitempty"`
+	Path             string         `json:"path,omitempty"`
+	CredentialRef    *CredentialRef `json:"credentialRef,omitempty"`
 }
 
 type ValuesRef struct {
-	Digest        string
-	InlineValues  map[string]any
-	CredentialRef *CredentialRef
+	Digest        string         `json:"digest"`
+	InlineValues  map[string]any `json:"inlineValues,omitempty"`
+	CredentialRef *CredentialRef `json:"credentialRef,omitempty"`
 }
 
 type ArgoSyncCommand struct {
-	Application string
-	Namespace   string
-	Project     string
-	Prune       bool
-	DryRun      bool
+	Application string `json:"application"`
+	Namespace   string `json:"namespace,omitempty"`
+	Project     string `json:"project,omitempty"`
+	Prune       bool   `json:"prune,omitempty"`
+	DryRun      bool   `json:"dryRun,omitempty"`
 }
 
 type ArgoRollbackCommand struct {
-	Application string
-	Namespace   string
-	ID          int64
-	Prune       bool
+	Application string `json:"application"`
+	Namespace   string `json:"namespace,omitempty"`
+	ID          int64  `json:"id"`
+	Prune       bool   `json:"prune,omitempty"`
 }
 
 type DeployHelmReleaseCommand struct {
-	ReleaseName string
-	Namespace   string
-	Source      SourceRef
-	Values      ValuesRef
+	ReleaseName string    `json:"releaseName"`
+	Namespace   string    `json:"namespace"`
+	Source      SourceRef `json:"source"`
+	Values      ValuesRef `json:"values"`
 }
 
 type ApplyKustomizeCommand struct {
-	Namespace string
-	Source    SourceRef
-	Values    *ValuesRef
+	Namespace string     `json:"namespace"`
+	Source    SourceRef  `json:"source"`
+	Values    *ValuesRef `json:"values,omitempty"`
 }
 
 type ApplyManifestBundleCommand struct {
-	Namespace string
-	Source    SourceRef
+	Namespace string    `json:"namespace"`
+	Source    SourceRef `json:"source"`
 }
 
 type RestartWorkloadCommand struct {
-	Namespace string
-	Kind      string
-	Name      string
+	Namespace string `json:"namespace"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
 }
 
 type ScaleWorkloadCommand struct {
-	Namespace string
-	Kind      string
-	Name      string
-	Replicas  int32
+	Namespace string `json:"namespace"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Replicas  int32  `json:"replicas"`
 }
 
 type RunDriftScanCommand struct {
-	Scope string
+	Scope string `json:"scope,omitempty"`
 }
 
 type InspectResourceCommand struct {
-	Namespace     string
-	Kind          string
-	Name          string
-	Container     string
-	TailLines     int32
-	IncludeEvents bool
-	IncludeLogs   bool
+	Namespace     string `json:"namespace"`
+	Kind          string `json:"kind"`
+	Name          string `json:"name"`
+	Container     string `json:"container,omitempty"`
+	TailLines     int32  `json:"tailLines,omitempty"`
+	IncludeEvents bool   `json:"includeEvents,omitempty"`
+	IncludeLogs   bool   `json:"includeLogs,omitempty"`
 }
 
 type ResourceInspection struct {
-	Namespace     string
-	Kind          string
-	Name          string
-	TotalPods     int
-	TruncatedPods bool
-	Pods          []InspectedPod
-	Events        []InspectedEvent
-	Logs          []InspectedLog
-	GeneratedAt   time.Time
+	Namespace     string           `json:"namespace"`
+	Kind          string           `json:"kind"`
+	Name          string           `json:"name"`
+	TotalPods     int              `json:"totalPods"`
+	TruncatedPods bool             `json:"truncatedPods,omitempty"`
+	Pods          []InspectedPod   `json:"pods,omitempty"`
+	Events        []InspectedEvent `json:"events,omitempty"`
+	Logs          []InspectedLog   `json:"logs,omitempty"`
+	GeneratedAt   time.Time        `json:"generatedAt,omitempty"`
 }
 
 type InspectedPod struct {
-	Name            string
-	Namespace       string
-	Phase           string
-	NodeName        string
-	Containers      []string
-	ReadyContainers int32
-	TotalContainers int32
-	Restarts        int32
-	StartTime       time.Time
+	Name            string    `json:"name"`
+	Namespace       string    `json:"namespace"`
+	Phase           string    `json:"phase,omitempty"`
+	NodeName        string    `json:"nodeName,omitempty"`
+	Containers      []string  `json:"containers,omitempty"`
+	ReadyContainers int32     `json:"readyContainers,omitempty"`
+	TotalContainers int32     `json:"totalContainers,omitempty"`
+	Restarts        int32     `json:"restarts,omitempty"`
+	StartTime       time.Time `json:"startTime,omitempty"`
 }
 
 type InspectedEvent struct {
-	Type           string
-	Reason         string
-	Message        string
-	Namespace      string
-	Kind           string
-	Name           string
-	Count          int
-	FirstTimestamp time.Time
-	LastTimestamp  time.Time
+	Type           string    `json:"type,omitempty"`
+	Reason         string    `json:"reason,omitempty"`
+	Message        string    `json:"message,omitempty"`
+	Namespace      string    `json:"namespace,omitempty"`
+	Kind           string    `json:"kind,omitempty"`
+	Name           string    `json:"name,omitempty"`
+	Count          int       `json:"count,omitempty"`
+	FirstTimestamp time.Time `json:"firstTimestamp,omitempty"`
+	LastTimestamp  time.Time `json:"lastTimestamp,omitempty"`
 }
 
 type InspectedLog struct {
-	PodName     string
-	Namespace   string
-	Container   string
-	Content     string
-	Truncated   bool
-	CollectedAt time.Time
+	PodName     string    `json:"podName"`
+	Namespace   string    `json:"namespace"`
+	Container   string    `json:"container,omitempty"`
+	Content     string    `json:"content,omitempty"`
+	Truncated   bool      `json:"truncated,omitempty"`
+	CollectedAt time.Time `json:"collectedAt,omitempty"`
 }
 
 func (c ExecuteCommand) Kind() string {

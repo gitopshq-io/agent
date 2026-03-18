@@ -3,6 +3,8 @@ package domain
 import (
 	"testing"
 	"time"
+
+	agentv1 "github.com/gitopshq-io/agent/proto/agent/v1"
 )
 
 func TestExecuteCommandEnsureSpecHashIgnoresRuntimeFields(t *testing.T) {
@@ -42,5 +44,52 @@ func TestExecuteCommandVerifyRejectsExpiredCommand(t *testing.T) {
 
 	if err := command.Verify(time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC)); err == nil {
 		t.Fatal("expected expired command to be rejected")
+	}
+}
+
+func TestExecuteCommandSpecDigestMatchesProtoCommand(t *testing.T) {
+	expiresAt := time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC)
+
+	domainCommand := ExecuteCommand{
+		CommandID:   "cmd-1",
+		ExpiresAt:   expiresAt,
+		SpecHash:    "ignored",
+		RequestedBy: "alice",
+		InspectResource: &InspectResourceCommand{
+			Namespace:     "payments",
+			Kind:          "Deployment",
+			Name:          "api",
+			Container:     "app",
+			TailLines:     200,
+			IncludeEvents: true,
+			IncludeLogs:   true,
+		},
+	}
+	protoCommand := &agentv1.ExecuteCommand{
+		CommandID:   "cmd-2",
+		ExpiresAt:   expiresAt,
+		SpecHash:    "ignored",
+		RequestedBy: "bob",
+		InspectResource: &agentv1.InspectResourceCommand{
+			Namespace:     "payments",
+			Kind:          "Deployment",
+			Name:          "api",
+			Container:     "app",
+			TailLines:     200,
+			IncludeEvents: true,
+			IncludeLogs:   true,
+		},
+	}
+
+	domainDigest, err := domainCommand.SpecDigest()
+	if err != nil {
+		t.Fatalf("domainCommand.SpecDigest() error = %v", err)
+	}
+	protoDigest, err := protoCommand.SpecDigest()
+	if err != nil {
+		t.Fatalf("protoCommand.SpecDigest() error = %v", err)
+	}
+	if domainDigest != protoDigest {
+		t.Fatalf("expected matching digests, got domain=%q proto=%q", domainDigest, protoDigest)
 	}
 }
