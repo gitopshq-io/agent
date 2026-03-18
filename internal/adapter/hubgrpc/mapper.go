@@ -120,16 +120,131 @@ func toProtoApplicationStatus(status *domain.ArgoApplicationStatus) *agentv1.Arg
 	out := &agentv1.ArgoApplicationStatus{Timestamp: status.Timestamp}
 	for _, application := range status.Applications {
 		out.Applications = append(out.Applications, agentv1.ArgoApplication{
-			Name:           application.Name,
-			Namespace:      application.Namespace,
-			Project:        application.Project,
-			RepoURL:        application.RepoURL,
-			Path:           application.Path,
-			TargetRevision: application.TargetRevision,
-			SyncStatus:     application.SyncStatus,
-			HealthStatus:   application.HealthStatus,
-			ResourceCount:  application.ResourceCount,
-			LastSyncedAt:   application.LastSyncedAt,
+			Name:                   application.Name,
+			Namespace:              application.Namespace,
+			Project:                application.Project,
+			RepoURL:                application.RepoURL,
+			Path:                   application.Path,
+			TargetRevision:         application.TargetRevision,
+			SyncStatus:             application.SyncStatus,
+			HealthStatus:           application.HealthStatus,
+			ResourceCount:          application.ResourceCount,
+			LastSyncedAt:           application.LastSyncedAt,
+			DestinationServer:      application.DestinationServer,
+			DestinationNamespace:   application.DestinationNamespace,
+			SourceType:             application.SourceType,
+			Sources:                toProtoArgoSources(application.Sources),
+			LiveRevision:           application.LiveRevision,
+			ReconciledAt:           application.ReconciledAt,
+			OutOfSyncResourceCount: application.OutOfSyncResourceCount,
+			DegradedResourceCount:  application.DegradedResourceCount,
+			SyncPolicy:             toProtoArgoSyncPolicy(application.SyncPolicy),
+			Operation:              toProtoArgoOperationState(application.Operation),
+			Conditions:             toProtoArgoConditions(application.Conditions),
+			Resources:              toProtoArgoResources(application.Resources),
+			Events:                 toProtoArgoEvents(application.Events),
+			History:                toProtoArgoHistory(application.History),
+		})
+	}
+	return out
+}
+
+func toProtoArgoSources(sources []domain.ArgoSource) []agentv1.ArgoSource {
+	out := make([]agentv1.ArgoSource, 0, len(sources))
+	for _, source := range sources {
+		out = append(out, agentv1.ArgoSource{
+			RepoURL:        source.RepoURL,
+			Path:           source.Path,
+			Chart:          source.Chart,
+			TargetRevision: source.TargetRevision,
+			Ref:            source.Ref,
+			Type:           source.Type,
+		})
+	}
+	return out
+}
+
+func toProtoArgoSyncPolicy(policy *domain.ArgoSyncPolicy) *agentv1.ArgoSyncPolicy {
+	if policy == nil {
+		return nil
+	}
+	return &agentv1.ArgoSyncPolicy{
+		Automated:  policy.Automated,
+		Prune:      policy.Prune,
+		SelfHeal:   policy.SelfHeal,
+		AllowEmpty: policy.AllowEmpty,
+	}
+}
+
+func toProtoArgoOperationState(operation *domain.ArgoOperationState) *agentv1.ArgoOperationState {
+	if operation == nil {
+		return nil
+	}
+	return &agentv1.ArgoOperationState{
+		Phase:      operation.Phase,
+		Message:    operation.Message,
+		StartedAt:  operation.StartedAt,
+		FinishedAt: operation.FinishedAt,
+	}
+}
+
+func toProtoArgoConditions(conditions []domain.ArgoCondition) []agentv1.ArgoCondition {
+	out := make([]agentv1.ArgoCondition, 0, len(conditions))
+	for _, condition := range conditions {
+		out = append(out, agentv1.ArgoCondition{
+			Type:             condition.Type,
+			Message:          condition.Message,
+			LastTransitionAt: condition.LastTransitionAt,
+		})
+	}
+	return out
+}
+
+func toProtoArgoResources(resources []domain.ArgoResource) []agentv1.ArgoResource {
+	out := make([]agentv1.ArgoResource, 0, len(resources))
+	for _, resource := range resources {
+		out = append(out, agentv1.ArgoResource{
+			Group:           resource.Group,
+			Kind:            resource.Kind,
+			Namespace:       resource.Namespace,
+			Name:            resource.Name,
+			Version:         resource.Version,
+			SyncStatus:      resource.SyncStatus,
+			HealthStatus:    resource.HealthStatus,
+			HealthMessage:   resource.HealthMessage,
+			HookType:        resource.HookType,
+			RequiresPruning: resource.RequiresPruning,
+		})
+	}
+	return out
+}
+
+func toProtoArgoEvents(events []domain.ArgoEvent) []agentv1.ArgoEvent {
+	out := make([]agentv1.ArgoEvent, 0, len(events))
+	for _, event := range events {
+		out = append(out, agentv1.ArgoEvent{
+			Type:           event.Type,
+			Reason:         event.Reason,
+			Message:        event.Message,
+			Namespace:      event.Namespace,
+			Kind:           event.Kind,
+			Name:           event.Name,
+			Count:          event.Count,
+			FirstTimestamp: event.FirstTimestamp,
+			LastTimestamp:  event.LastTimestamp,
+		})
+	}
+	return out
+}
+
+func toProtoArgoHistory(history []domain.ArgoHistoryEntry) []agentv1.ArgoHistoryEntry {
+	out := make([]agentv1.ArgoHistoryEntry, 0, len(history))
+	for _, entry := range history {
+		out = append(out, agentv1.ArgoHistoryEntry{
+			ID:         entry.ID,
+			Revision:   entry.Revision,
+			DeployedAt: entry.DeployedAt,
+			SourceType: entry.SourceType,
 		})
 	}
 	return out

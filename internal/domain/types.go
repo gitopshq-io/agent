@@ -138,17 +138,92 @@ type InventorySnapshot struct {
 	Resources []ResourceRef
 }
 
-type ArgoApplication struct {
-	Name           string
-	Namespace      string
-	Project        string
+type ArgoSource struct {
 	RepoURL        string
 	Path           string
+	Chart          string
 	TargetRevision string
-	SyncStatus     string
-	HealthStatus   string
-	ResourceCount  int
-	LastSyncedAt   time.Time
+	Ref            string
+	Type           string
+}
+
+type ArgoSyncPolicy struct {
+	Automated  bool
+	Prune      bool
+	SelfHeal   bool
+	AllowEmpty bool
+}
+
+type ArgoOperationState struct {
+	Phase      string
+	Message    string
+	StartedAt  time.Time
+	FinishedAt time.Time
+}
+
+type ArgoCondition struct {
+	Type             string
+	Message          string
+	LastTransitionAt time.Time
+}
+
+type ArgoResource struct {
+	Group           string
+	Kind            string
+	Namespace       string
+	Name            string
+	Version         string
+	SyncStatus      string
+	HealthStatus    string
+	HealthMessage   string
+	HookType        string
+	RequiresPruning bool
+}
+
+type ArgoEvent struct {
+	Type           string
+	Reason         string
+	Message        string
+	Namespace      string
+	Kind           string
+	Name           string
+	Count          int
+	FirstTimestamp time.Time
+	LastTimestamp  time.Time
+}
+
+type ArgoHistoryEntry struct {
+	ID         int64
+	Revision   string
+	DeployedAt time.Time
+	SourceType string
+}
+
+type ArgoApplication struct {
+	Name                   string
+	Namespace              string
+	Project                string
+	RepoURL                string
+	Path                   string
+	TargetRevision         string
+	SyncStatus             string
+	HealthStatus           string
+	ResourceCount          int
+	LastSyncedAt           time.Time
+	DestinationServer      string
+	DestinationNamespace   string
+	SourceType             string
+	Sources                []ArgoSource
+	LiveRevision           string
+	ReconciledAt           time.Time
+	OutOfSyncResourceCount int
+	DegradedResourceCount  int
+	SyncPolicy             *ArgoSyncPolicy
+	Operation              *ArgoOperationState
+	Conditions             []ArgoCondition
+	Resources              []ArgoResource
+	Events                 []ArgoEvent
+	History                []ArgoHistoryEntry
 }
 
 type ArgoApplicationStatus struct {

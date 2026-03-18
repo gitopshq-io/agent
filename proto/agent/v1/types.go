@@ -108,17 +108,92 @@ type InventorySnapshot struct {
 	Resources []ResourceRef    `json:"resources,omitempty"`
 }
 
-type ArgoApplication struct {
-	Name           string    `json:"name"`
+type ArgoSource struct {
+	RepoURL        string `json:"repoUrl,omitempty"`
+	Path           string `json:"path,omitempty"`
+	Chart          string `json:"chart,omitempty"`
+	TargetRevision string `json:"targetRevision,omitempty"`
+	Ref            string `json:"ref,omitempty"`
+	Type           string `json:"type,omitempty"`
+}
+
+type ArgoSyncPolicy struct {
+	Automated  bool `json:"automated,omitempty"`
+	Prune      bool `json:"prune,omitempty"`
+	SelfHeal   bool `json:"selfHeal,omitempty"`
+	AllowEmpty bool `json:"allowEmpty,omitempty"`
+}
+
+type ArgoOperationState struct {
+	Phase      string    `json:"phase,omitempty"`
+	Message    string    `json:"message,omitempty"`
+	StartedAt  time.Time `json:"startedAt,omitempty"`
+	FinishedAt time.Time `json:"finishedAt,omitempty"`
+}
+
+type ArgoCondition struct {
+	Type             string    `json:"type,omitempty"`
+	Message          string    `json:"message,omitempty"`
+	LastTransitionAt time.Time `json:"lastTransitionAt,omitempty"`
+}
+
+type ArgoResource struct {
+	Group           string `json:"group,omitempty"`
+	Kind            string `json:"kind,omitempty"`
+	Namespace       string `json:"namespace,omitempty"`
+	Name            string `json:"name,omitempty"`
+	Version         string `json:"version,omitempty"`
+	SyncStatus      string `json:"syncStatus,omitempty"`
+	HealthStatus    string `json:"healthStatus,omitempty"`
+	HealthMessage   string `json:"healthMessage,omitempty"`
+	HookType        string `json:"hookType,omitempty"`
+	RequiresPruning bool   `json:"requiresPruning,omitempty"`
+}
+
+type ArgoEvent struct {
+	Type           string    `json:"type,omitempty"`
+	Reason         string    `json:"reason,omitempty"`
+	Message        string    `json:"message,omitempty"`
 	Namespace      string    `json:"namespace,omitempty"`
-	Project        string    `json:"project,omitempty"`
-	RepoURL        string    `json:"repoUrl,omitempty"`
-	Path           string    `json:"path,omitempty"`
-	TargetRevision string    `json:"targetRevision,omitempty"`
-	SyncStatus     string    `json:"syncStatus,omitempty"`
-	HealthStatus   string    `json:"healthStatus,omitempty"`
-	ResourceCount  int       `json:"resourceCount"`
-	LastSyncedAt   time.Time `json:"lastSyncedAt,omitempty"`
+	Kind           string    `json:"kind,omitempty"`
+	Name           string    `json:"name,omitempty"`
+	Count          int       `json:"count,omitempty"`
+	FirstTimestamp time.Time `json:"firstTimestamp,omitempty"`
+	LastTimestamp  time.Time `json:"lastTimestamp,omitempty"`
+}
+
+type ArgoHistoryEntry struct {
+	ID         int64     `json:"id,omitempty"`
+	Revision   string    `json:"revision,omitempty"`
+	DeployedAt time.Time `json:"deployedAt,omitempty"`
+	SourceType string    `json:"sourceType,omitempty"`
+}
+
+type ArgoApplication struct {
+	Name                   string              `json:"name"`
+	Namespace              string              `json:"namespace,omitempty"`
+	Project                string              `json:"project,omitempty"`
+	RepoURL                string              `json:"repoUrl,omitempty"`
+	Path                   string              `json:"path,omitempty"`
+	TargetRevision         string              `json:"targetRevision,omitempty"`
+	SyncStatus             string              `json:"syncStatus,omitempty"`
+	HealthStatus           string              `json:"healthStatus,omitempty"`
+	ResourceCount          int                 `json:"resourceCount"`
+	LastSyncedAt           time.Time           `json:"lastSyncedAt,omitempty"`
+	DestinationServer      string              `json:"destinationServer,omitempty"`
+	DestinationNamespace   string              `json:"destinationNamespace,omitempty"`
+	SourceType             string              `json:"sourceType,omitempty"`
+	Sources                []ArgoSource        `json:"sources,omitempty"`
+	LiveRevision           string              `json:"liveRevision,omitempty"`
+	ReconciledAt           time.Time           `json:"reconciledAt,omitempty"`
+	OutOfSyncResourceCount int                 `json:"outOfSyncResourceCount,omitempty"`
+	DegradedResourceCount  int                 `json:"degradedResourceCount,omitempty"`
+	SyncPolicy             *ArgoSyncPolicy     `json:"syncPolicy,omitempty"`
+	Operation              *ArgoOperationState `json:"operation,omitempty"`
+	Conditions             []ArgoCondition     `json:"conditions,omitempty"`
+	Resources              []ArgoResource      `json:"resources,omitempty"`
+	Events                 []ArgoEvent         `json:"events,omitempty"`
+	History                []ArgoHistoryEntry  `json:"history,omitempty"`
 }
 
 type ArgoApplicationStatus struct {

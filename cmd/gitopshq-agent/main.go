@@ -46,7 +46,6 @@ func main() {
 
 	hub := hubgrpc.New(cfg.Hub)
 	normalizedArgoServer := argocd.NormalizeServerURL(cfg.ArgoCD.ServerURL, cfg.ArgoCD.Insecure)
-	argocdClient := argocd.New(cfg.ArgoCD)
 	switch {
 	case normalizedArgoServer == "":
 		slog.Info("argocd integration disabled", "reason", "GITOPSHQ_ARGOCD_SERVER is empty", "capabilityEnabled", hasCapability(cluster.Capabilities, domain.CapabilityArgoCDRead) || hasCapability(cluster.Capabilities, domain.CapabilityArgoCDWrite))
@@ -60,6 +59,7 @@ func main() {
 		slog.Error("failed to initialize kubernetes runtime", "error", err)
 		os.Exit(1)
 	}
+	argocdClient := argocd.New(cfg.ArgoCD, kubeClient.TypedClient())
 	identityStore, identityLocation, err := buildIdentityStore(cfg, kubeClient)
 	if err != nil {
 		slog.Error("failed to initialize identity store", "error", err)
