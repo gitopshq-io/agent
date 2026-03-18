@@ -2,7 +2,6 @@ package config
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"os"
 	"strconv"
@@ -21,8 +20,6 @@ type Config struct {
 type HubConfig struct {
 	Address           string
 	Insecure          bool
-	ServerName        string
-	CACertPath        string
 	StatusInterval    time.Duration
 	RegistrationToken string
 	AgentTokenPath    string
@@ -62,8 +59,6 @@ func Load() Config {
 		Hub: HubConfig{
 			Address:           envOrDefault("GITOPSHQ_HUB_ADDRESS", "127.0.0.1:50051"),
 			Insecure:          envBoolOrDefault("GITOPSHQ_HUB_INSECURE", false),
-			ServerName:        envOrDefault("GITOPSHQ_HUB_SERVER_NAME", ""),
-			CACertPath:        envOrDefault("GITOPSHQ_HUB_CA_CERT", ""),
 			StatusInterval:    time.Duration(envIntOrDefault("GITOPSHQ_STATUS_INTERVAL_SECONDS", 30)) * time.Second,
 			RegistrationToken: envOrDefault("GITOPSHQ_REGISTRATION_TOKEN", ""),
 			AgentTokenPath:    envOrDefault("GITOPSHQ_AGENT_TOKEN_PATH", "/tmp/gitopshq-agent-token"),
@@ -119,23 +114,9 @@ func (c HubConfig) TLSConfig() (*tls.Config, error) {
 	if c.Insecure {
 		return nil, nil
 	}
-	tlsCfg := &tls.Config{
+	return &tls.Config{
 		MinVersion: tls.VersionTLS12,
-		ServerName: c.ServerName,
-	}
-	if c.CACertPath == "" {
-		return tlsCfg, nil
-	}
-	pem, err := os.ReadFile(c.CACertPath)
-	if err != nil {
-		return nil, fmt.Errorf("read hub ca cert: %w", err)
-	}
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(pem) {
-		return nil, fmt.Errorf("append hub ca cert: invalid pem")
-	}
-	tlsCfg.RootCAs = pool
-	return tlsCfg, nil
+	}, nil
 }
 
 func envOrDefault(key, fallback string) string {

@@ -64,7 +64,7 @@ Important chart values:
 - `argocd.*`
 - `directDeploy.*`
 - `directDeploy.forceOwnership`
-- `tls.*`
+- `tls.insecure`
 - `proxy.*`
 
 ## Local Development

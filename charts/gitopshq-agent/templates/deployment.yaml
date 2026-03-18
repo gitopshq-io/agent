@@ -56,10 +56,6 @@ spec:
               value: {{ .Values.agent.tokenPath | quote }}
             - name: GITOPSHQ_HUB_INSECURE
               value: {{ .Values.tls.insecure | quote }}
-            - name: GITOPSHQ_HUB_SERVER_NAME
-              value: {{ .Values.tls.serverName | quote }}
-            - name: GITOPSHQ_HUB_CA_CERT
-              value: {{ .Values.tls.caCertPath | quote }}
             - name: GITOPSHQ_CLUSTER_NAME
               value: {{ .Values.agent.clusterName | quote }}
             - name: GITOPSHQ_CLUSTER_DISPLAY_NAME

@@ -71,8 +71,6 @@ directDeploy:
 
 tls:
   insecure: false
-  serverName: ""
-  caCertPath: ""
 
 proxy:
   httpProxy: ""
