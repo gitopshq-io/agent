@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -35,7 +36,19 @@ const (
 	managedByLabelKey   = "gitopshq.io/managed-by"
 	managedByLabelValue = "gitopshq-agent"
 	versionLabelKey     = "gitopshq.io/credential-version"
+	inspectDefaultTail  = int64(200)
+	inspectMaxTail      = int64(400)
+	inspectMaxPods      = 3
+	inspectMaxEvents    = 50
+	inspectMaxLogBytes  = int64(32 * 1024)
 )
+
+type inspectTargetRef struct {
+	kind      string
+	namespace string
+	name      string
+	uid       types.UID
+}
 
 type Client struct {
 	typed            kubernetes.Interface
@@ -238,6 +251,48 @@ func (c *Client) CollectDrift(_ context.Context) (*domain.DriftReport, error) {
 	return &domain.DriftReport{Timestamp: time.Now().UTC()}, nil
 }
 
+func (c *Client) InspectResource(ctx context.Context, command domain.InspectResourceCommand) (*domain.ResourceInspection, error) {
+	kind := strings.TrimSpace(command.Kind)
+	name := strings.TrimSpace(command.Name)
+	if kind == "" {
+		return nil, fmt.Errorf("inspect resource kind is required")
+	}
+	if name == "" {
+		return nil, fmt.Errorf("inspect resource name is required")
+	}
+	namespace := defaultString(strings.TrimSpace(command.Namespace), c.defaultNamespace)
+	includeEvents := command.IncludeEvents
+	includeLogs := command.IncludeLogs
+	if !includeEvents && !includeLogs {
+		includeEvents = true
+		includeLogs = true
+	}
+
+	targets, pods, totalPods, truncatedPods, err := c.inspectTargets(ctx, namespace, kind, name)
+	if err != nil {
+		return nil, err
+	}
+	inspection := &domain.ResourceInspection{
+		Namespace:     namespace,
+		Kind:          kind,
+		Name:          name,
+		TotalPods:     totalPods,
+		TruncatedPods: truncatedPods,
+		Pods:          inspectedPodsFromList(pods),
+		GeneratedAt:   time.Now().UTC(),
+	}
+	if includeEvents {
+		inspection.Events, err = c.inspectEvents(ctx, namespace, targets)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if includeLogs {
+		inspection.Logs = c.inspectLogs(ctx, namespace, pods, command.Container, sanitizeTailLines(command.TailLines))
+	}
+	return inspection, nil
+}
+
 func (c *Client) ReadSecretData(ctx context.Context, ref domain.CredentialRef) (map[string][]byte, error) {
 	namespace := ref.Namespace
 	if namespace == "" {
@@ -248,6 +303,190 @@ func (c *Client) ReadSecretData(ctx context.Context, ref domain.CredentialRef) (
 		return nil, fmt.Errorf("read secret %s/%s: %w", namespace, ref.SecretName, err)
 	}
 	return secret.Data, nil
+}
+
+func (c *Client) inspectTargets(ctx context.Context, namespace, kind, name string) ([]inspectTargetRef, []corev1.Pod, int, bool, error) {
+	switch strings.ToLower(kind) {
+	case "pod", "pods":
+		pod, err := c.typed.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, 0, false, fmt.Errorf("get pod %s/%s: %w", namespace, name, err)
+		}
+		return []inspectTargetRef{podRef(pod)}, []corev1.Pod{*pod}, 1, false, nil
+	case "deployment", "deployments":
+		workload, err := c.typed.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, 0, false, fmt.Errorf("get deployment %s/%s: %w", namespace, name, err)
+		}
+		pods, total, truncated, err := c.inspectPodsForSelector(ctx, namespace, workload.Spec.Selector)
+		if err != nil {
+			return nil, nil, 0, false, err
+		}
+		return append([]inspectTargetRef{workloadRef("Deployment", namespace, workload.Name, workload.UID)}, podRefs(pods)...), pods, total, truncated, nil
+	case "statefulset", "statefulsets":
+		workload, err := c.typed.AppsV1().StatefulSets(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, 0, false, fmt.Errorf("get statefulset %s/%s: %w", namespace, name, err)
+		}
+		pods, total, truncated, err := c.inspectPodsForSelector(ctx, namespace, workload.Spec.Selector)
+		if err != nil {
+			return nil, nil, 0, false, err
+		}
+		return append([]inspectTargetRef{workloadRef("StatefulSet", namespace, workload.Name, workload.UID)}, podRefs(pods)...), pods, total, truncated, nil
+	case "daemonset", "daemonsets":
+		workload, err := c.typed.AppsV1().DaemonSets(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, 0, false, fmt.Errorf("get daemonset %s/%s: %w", namespace, name, err)
+		}
+		pods, total, truncated, err := c.inspectPodsForSelector(ctx, namespace, workload.Spec.Selector)
+		if err != nil {
+			return nil, nil, 0, false, err
+		}
+		return append([]inspectTargetRef{workloadRef("DaemonSet", namespace, workload.Name, workload.UID)}, podRefs(pods)...), pods, total, truncated, nil
+	case "replicaset", "replicasets":
+		workload, err := c.typed.AppsV1().ReplicaSets(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			return nil, nil, 0, false, fmt.Errorf("get replicaset %s/%s: %w", namespace, name, err)
+		}
+		pods, total, truncated, err := c.inspectPodsForSelector(ctx, namespace, workload.Spec.Selector)
+		if err != nil {
+			return nil, nil, 0, false, err
+		}
+		return append([]inspectTargetRef{workloadRef("ReplicaSet", namespace, workload.Name, workload.UID)}, podRefs(pods)...), pods, total, truncated, nil
+	default:
+		return nil, nil, 0, false, fmt.Errorf("resource kind %q is not supported for on-demand inspection", kind)
+	}
+}
+
+func (c *Client) inspectPodsForSelector(ctx context.Context, namespace string, selector *metav1.LabelSelector) ([]corev1.Pod, int, bool, error) {
+	if selector == nil {
+		return nil, 0, false, fmt.Errorf("workload selector is missing")
+	}
+	labelSelector, err := metav1.LabelSelectorAsSelector(selector)
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("build workload selector: %w", err)
+	}
+	if labelSelector.Empty() {
+		return nil, 0, false, fmt.Errorf("workload selector is empty")
+	}
+	list, err := c.typed.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector.String()})
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("list pods for selector %q: %w", labelSelector.String(), err)
+	}
+	pods := append([]corev1.Pod(nil), list.Items...)
+	sort.Slice(pods, func(i, j int) bool {
+		return pods[i].CreationTimestamp.Time.After(pods[j].CreationTimestamp.Time)
+	})
+	total := len(pods)
+	truncated := false
+	if len(pods) > inspectMaxPods {
+		pods = pods[:inspectMaxPods]
+		truncated = true
+	}
+	return pods, total, truncated, nil
+}
+
+func (c *Client) inspectEvents(ctx context.Context, namespace string, targets []inspectTargetRef) ([]domain.InspectedEvent, error) {
+	if len(targets) == 0 {
+		return nil, nil
+	}
+	events, err := c.typed.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list events in %s: %w", namespace, err)
+	}
+	out := make([]domain.InspectedEvent, 0, len(events.Items))
+	for _, event := range events.Items {
+		if !matchesInspectTarget(event, targets) {
+			continue
+		}
+		first, last := eventBounds(event)
+		out = append(out, domain.InspectedEvent{
+			Type:           event.Type,
+			Reason:         event.Reason,
+			Message:        event.Message,
+			Namespace:      event.InvolvedObject.Namespace,
+			Kind:           event.InvolvedObject.Kind,
+			Name:           event.InvolvedObject.Name,
+			Count:          int(event.Count),
+			FirstTimestamp: first,
+			LastTimestamp:  last,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].LastTimestamp.After(out[j].LastTimestamp)
+	})
+	if len(out) > inspectMaxEvents {
+		out = out[:inspectMaxEvents]
+	}
+	return out, nil
+}
+
+func (c *Client) inspectLogs(ctx context.Context, namespace string, pods []corev1.Pod, container string, tailLines int64) []domain.InspectedLog {
+	if len(pods) == 0 {
+		return nil
+	}
+	logs := make([]domain.InspectedLog, 0, len(pods))
+	for _, pod := range pods {
+		containers := inspectContainers(pod, container)
+		for _, containerName := range containers {
+			req := c.typed.CoreV1().Pods(namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
+				Container:  containerName,
+				TailLines:  &tailLines,
+				LimitBytes: int64Ptr(inspectMaxLogBytes),
+				Timestamps: true,
+			})
+			stream, err := req.Stream(ctx)
+			if err != nil {
+				logs = append(logs, domain.InspectedLog{
+					PodName:     pod.Name,
+					Namespace:   namespace,
+					Container:   containerName,
+					Content:     fmt.Sprintf("error fetching logs: %v", err),
+					CollectedAt: time.Now().UTC(),
+				})
+				continue
+			}
+			payload, readErr := io.ReadAll(stream)
+			_ = stream.Close()
+			if readErr != nil {
+				logs = append(logs, domain.InspectedLog{
+					PodName:     pod.Name,
+					Namespace:   namespace,
+					Container:   containerName,
+					Content:     fmt.Sprintf("error reading logs: %v", readErr),
+					CollectedAt: time.Now().UTC(),
+				})
+				continue
+			}
+			logs = append(logs, domain.InspectedLog{
+				PodName:     pod.Name,
+				Namespace:   namespace,
+				Container:   containerName,
+				Content:     string(payload),
+				Truncated:   int64(len(payload)) >= inspectMaxLogBytes,
+				CollectedAt: time.Now().UTC(),
+			})
+		}
+	}
+	return logs
+}
+
+func inspectedPodsFromList(pods []corev1.Pod) []domain.InspectedPod {
+	out := make([]domain.InspectedPod, 0, len(pods))
+	for _, pod := range pods {
+		out = append(out, domain.InspectedPod{
+			Name:            pod.Name,
+			Namespace:       pod.Namespace,
+			Phase:           string(pod.Status.Phase),
+			NodeName:        pod.Spec.NodeName,
+			Containers:      inspectContainers(pod, ""),
+			ReadyContainers: podReadyCount(pod),
+			TotalContainers: int32(len(pod.Spec.Containers)),
+			Restarts:        podRestartCount(pod),
+			StartTime:       podStartTime(pod),
+		})
+	}
+	return out
 }
 
 func (c *Client) MirrorCredentials(ctx context.Context, req domain.CredentialSyncRequest, allowedTargets []string) (domain.CredentialSyncResult, error) {
@@ -500,6 +739,128 @@ func defaultString(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func sanitizeTailLines(value int32) int64 {
+	if value <= 0 {
+		return inspectDefaultTail
+	}
+	if int64(value) > inspectMaxTail {
+		return inspectMaxTail
+	}
+	return int64(value)
+}
+
+func podRef(pod *corev1.Pod) inspectTargetRef {
+	if pod == nil {
+		return inspectTargetRef{}
+	}
+	return workloadRef("Pod", pod.Namespace, pod.Name, pod.UID)
+}
+
+func podRefs(pods []corev1.Pod) []inspectTargetRef {
+	out := make([]inspectTargetRef, 0, len(pods))
+	for i := range pods {
+		out = append(out, podRef(&pods[i]))
+	}
+	return out
+}
+
+func workloadRef(kind, namespace, name string, uid types.UID) inspectTargetRef {
+	return inspectTargetRef{
+		kind:      kind,
+		namespace: namespace,
+		name:      name,
+		uid:       uid,
+	}
+}
+
+func matchesInspectTarget(event corev1.Event, targets []inspectTargetRef) bool {
+	for _, target := range targets {
+		if target.kind == "" || target.name == "" {
+			continue
+		}
+		if !strings.EqualFold(event.InvolvedObject.Kind, target.kind) {
+			continue
+		}
+		if event.InvolvedObject.Name != target.name {
+			continue
+		}
+		if target.namespace != "" && event.InvolvedObject.Namespace != "" && event.InvolvedObject.Namespace != target.namespace {
+			continue
+		}
+		if target.uid != "" && event.InvolvedObject.UID != "" && event.InvolvedObject.UID != target.uid {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func eventBounds(event corev1.Event) (time.Time, time.Time) {
+	first := event.FirstTimestamp.Time
+	if first.IsZero() {
+		first = event.EventTime.Time
+	}
+	if first.IsZero() {
+		first = event.CreationTimestamp.Time
+	}
+	last := event.LastTimestamp.Time
+	if last.IsZero() && event.Series != nil {
+		last = event.Series.LastObservedTime.Time
+	}
+	if last.IsZero() {
+		last = event.EventTime.Time
+	}
+	if last.IsZero() {
+		last = event.CreationTimestamp.Time
+	}
+	return first.UTC(), last.UTC()
+}
+
+func inspectContainers(pod corev1.Pod, explicit string) []string {
+	if explicit != "" {
+		for _, container := range pod.Spec.Containers {
+			if container.Name == explicit {
+				return []string{explicit}
+			}
+		}
+		return nil
+	}
+	out := make([]string, 0, len(pod.Spec.Containers))
+	for _, container := range pod.Spec.Containers {
+		out = append(out, container.Name)
+	}
+	return out
+}
+
+func podReadyCount(pod corev1.Pod) int32 {
+	var ready int32
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.Ready {
+			ready++
+		}
+	}
+	return ready
+}
+
+func podRestartCount(pod corev1.Pod) int32 {
+	var restarts int32
+	for _, status := range pod.Status.ContainerStatuses {
+		restarts += status.RestartCount
+	}
+	return restarts
+}
+
+func podStartTime(pod corev1.Pod) time.Time {
+	if pod.Status.StartTime == nil {
+		return time.Time{}
+	}
+	return pod.Status.StartTime.UTC()
+}
+
+func int64Ptr(value int64) *int64 {
+	return &value
 }
 
 func workloadResourceForKind(kind string) (schema.GroupVersionResource, error) {

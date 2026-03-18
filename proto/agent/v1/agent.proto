@@ -264,6 +264,16 @@ message RunDriftScanCommand {
   string scope = 1;
 }
 
+message InspectResourceCommand {
+  string namespace = 1;
+  string kind = 2;
+  string name = 3;
+  string container = 4;
+  int32 tail_lines = 5;
+  bool include_events = 6;
+  bool include_logs = 7;
+}
+
 message ExecuteCommand {
   string command_id = 1;
   string required_capability = 2;
@@ -280,6 +290,7 @@ message ExecuteCommand {
     RestartWorkloadCommand restart_workload = 15;
     ScaleWorkloadCommand scale_workload = 16;
     RunDriftScanCommand run_drift_scan = 17;
+    InspectResourceCommand inspect_resource = 18;
   }
 }
 

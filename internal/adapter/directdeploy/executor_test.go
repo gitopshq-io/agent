@@ -15,6 +15,7 @@ type fakeRuntime struct {
 	applied   []render.Manifest
 	namespace string
 	scaled    *domain.ScaleWorkloadCommand
+	inspected *domain.InspectResourceCommand
 }
 
 func (r *fakeRuntime) ApplyRendered(_ context.Context, namespace string, manifests []render.Manifest) ([]domain.ResourceRef, error) {
@@ -38,6 +39,16 @@ func (r *fakeRuntime) ScaleWorkload(_ context.Context, command domain.ScaleWorkl
 
 func (r *fakeRuntime) CollectDrift(context.Context) (*domain.DriftReport, error) {
 	return &domain.DriftReport{Timestamp: time.Now().UTC()}, nil
+}
+
+func (r *fakeRuntime) InspectResource(_ context.Context, command domain.InspectResourceCommand) (*domain.ResourceInspection, error) {
+	r.inspected = &command
+	return &domain.ResourceInspection{
+		Namespace:   command.Namespace,
+		Kind:        command.Kind,
+		Name:        command.Name,
+		GeneratedAt: time.Now().UTC(),
+	}, nil
 }
 
 type fakeSourceLoader struct {
@@ -160,5 +171,33 @@ func TestExecutorRejectsManifestSourcePathEscape(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected repository path escape to be rejected")
+	}
+}
+
+func TestExecutorInspectResource(t *testing.T) {
+	runtime := &fakeRuntime{}
+	executor := Executor{
+		Runtime: runtime,
+		Sources: fakeSourceLoader{},
+	}
+
+	result, err := executor.Execute(context.Background(), domain.ExecuteCommand{
+		CommandID: "cmd-inspect",
+		InspectResource: &domain.InspectResourceCommand{
+			Namespace:     "payments",
+			Kind:          "Deployment",
+			Name:          "api",
+			IncludeEvents: true,
+			IncludeLogs:   true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Status != domain.CommandStatusCompleted {
+		t.Fatalf("expected completed status, got %q", result.Status)
+	}
+	if runtime.inspected == nil || runtime.inspected.Name != "api" {
+		t.Fatalf("expected inspect command to reach runtime, got %#v", runtime.inspected)
 	}
 }

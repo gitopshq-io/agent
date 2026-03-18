@@ -17,6 +17,7 @@ type Runtime interface {
 	RestartWorkload(ctx context.Context, command domain.RestartWorkloadCommand) error
 	ScaleWorkload(ctx context.Context, command domain.ScaleWorkloadCommand) error
 	CollectDrift(ctx context.Context) (*domain.DriftReport, error)
+	InspectResource(ctx context.Context, command domain.InspectResourceCommand) (*domain.ResourceInspection, error)
 }
 
 type SourceLoader interface {
@@ -44,6 +45,8 @@ func (e Executor) Execute(ctx context.Context, cmd domain.ExecuteCommand) (domai
 		return e.scaleWorkload(ctx, cmd)
 	case cmd.RunDriftScan != nil:
 		return e.runDriftScan(ctx, cmd)
+	case cmd.InspectResource != nil:
+		return e.inspectResource(ctx, cmd)
 	default:
 		return domain.CommandResult{
 			CommandID: cmd.CommandID,
@@ -190,6 +193,14 @@ func (e Executor) runDriftScan(ctx context.Context, cmd domain.ExecuteCommand) (
 		findings = len(report.Findings)
 	}
 	return completedResult(cmd.CommandID, fmt.Sprintf("drift scan completed with %d findings", findings), report), nil
+}
+
+func (e Executor) inspectResource(ctx context.Context, cmd domain.ExecuteCommand) (domain.CommandResult, error) {
+	inspection, err := e.Runtime.InspectResource(ctx, *cmd.InspectResource)
+	if err != nil {
+		return domain.CommandResult{}, err
+	}
+	return completedResult(cmd.CommandID, "resource inspection completed", inspection), nil
 }
 
 func completedResult(commandID, message string, result any) domain.CommandResult {

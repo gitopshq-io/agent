@@ -281,6 +281,7 @@ type ExecuteCommand struct {
 	RestartWorkload     *RestartWorkloadCommand     `json:"restartWorkload,omitempty"`
 	ScaleWorkload       *ScaleWorkloadCommand       `json:"scaleWorkload,omitempty"`
 	RunDriftScan        *RunDriftScanCommand        `json:"runDriftScan,omitempty"`
+	InspectResource     *InspectResourceCommand     `json:"inspectResource,omitempty"`
 }
 
 type CredentialRef struct {
@@ -355,6 +356,16 @@ type RunDriftScanCommand struct {
 	Scope string `json:"scope,omitempty"`
 }
 
+type InspectResourceCommand struct {
+	Namespace     string `json:"namespace"`
+	Kind          string `json:"kind"`
+	Name          string `json:"name"`
+	Container     string `json:"container,omitempty"`
+	TailLines     int32  `json:"tailLines,omitempty"`
+	IncludeEvents bool   `json:"includeEvents,omitempty"`
+	IncludeLogs   bool   `json:"includeLogs,omitempty"`
+}
+
 type SyncCredentials struct {
 	CommandID string             `json:"commandId"`
 	Version   string             `json:"version"`
@@ -381,6 +392,8 @@ func (c *ExecuteCommand) Kind() string {
 		return "scale_workload"
 	case c.RunDriftScan != nil:
 		return "run_drift_scan"
+	case c.InspectResource != nil:
+		return "inspect_resource"
 	default:
 		return ""
 	}
@@ -404,6 +417,8 @@ func (c *ExecuteCommand) InferRequiredCapability() Capability {
 		return CapabilityKubernetesScale
 	case "run_drift_scan":
 		return CapabilityObserve
+	case "inspect_resource":
+		return CapabilityObserve
 	default:
 		return CapabilityObserve
 	}
@@ -426,6 +441,7 @@ func (c *ExecuteCommand) Validate() error {
 		c.RestartWorkload != nil,
 		c.ScaleWorkload != nil,
 		c.RunDriftScan != nil,
+		c.InspectResource != nil,
 	} {
 		if present {
 			count++
@@ -448,6 +464,7 @@ type executeCommandSpec struct {
 	RestartWorkload     *RestartWorkloadCommand     `json:"restartWorkload,omitempty"`
 	ScaleWorkload       *ScaleWorkloadCommand       `json:"scaleWorkload,omitempty"`
 	RunDriftScan        *RunDriftScanCommand        `json:"runDriftScan,omitempty"`
+	InspectResource     *InspectResourceCommand     `json:"inspectResource,omitempty"`
 }
 
 func (c *ExecuteCommand) spec() (executeCommandSpec, error) {
@@ -475,6 +492,7 @@ func (c *ExecuteCommand) spec() (executeCommandSpec, error) {
 		RestartWorkload:     c.RestartWorkload,
 		ScaleWorkload:       c.ScaleWorkload,
 		RunDriftScan:        c.RunDriftScan,
+		InspectResource:     c.InspectResource,
 	}, nil
 }
 
@@ -544,6 +562,8 @@ func expectedRequiredCapability(c *ExecuteCommand) Capability {
 	case "scale_workload":
 		return CapabilityKubernetesScale
 	case "run_drift_scan":
+		return CapabilityObserve
+	case "inspect_resource":
 		return CapabilityObserve
 	default:
 		return CapabilityObserve

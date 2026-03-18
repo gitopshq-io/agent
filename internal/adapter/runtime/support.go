@@ -80,7 +80,8 @@ func (e CommandRouter) Execute(ctx context.Context, cmd domain.ExecuteCommand) (
 		cmd.ApplyManifestBundle != nil ||
 		cmd.RestartWorkload != nil ||
 		cmd.ScaleWorkload != nil ||
-		cmd.RunDriftScan != nil:
+		cmd.RunDriftScan != nil ||
+		cmd.InspectResource != nil:
 		if e.Direct != nil {
 			return e.Direct.Execute(ctx, cmd)
 		}

@@ -314,6 +314,7 @@ type ExecutionSpec struct {
 	RestartWorkload     *RestartWorkloadCommand     `json:"restartWorkload,omitempty"`
 	ScaleWorkload       *ScaleWorkloadCommand       `json:"scaleWorkload,omitempty"`
 	RunDriftScan        *RunDriftScanCommand        `json:"runDriftScan,omitempty"`
+	InspectResource     *InspectResourceCommand     `json:"inspectResource,omitempty"`
 }
 
 type ExecuteCommand struct {
@@ -330,6 +331,7 @@ type ExecuteCommand struct {
 	RestartWorkload     *RestartWorkloadCommand
 	ScaleWorkload       *ScaleWorkloadCommand
 	RunDriftScan        *RunDriftScanCommand
+	InspectResource     *InspectResourceCommand
 }
 
 type CredentialRef struct {
@@ -404,6 +406,61 @@ type RunDriftScanCommand struct {
 	Scope string
 }
 
+type InspectResourceCommand struct {
+	Namespace     string
+	Kind          string
+	Name          string
+	Container     string
+	TailLines     int32
+	IncludeEvents bool
+	IncludeLogs   bool
+}
+
+type ResourceInspection struct {
+	Namespace     string
+	Kind          string
+	Name          string
+	TotalPods     int
+	TruncatedPods bool
+	Pods          []InspectedPod
+	Events        []InspectedEvent
+	Logs          []InspectedLog
+	GeneratedAt   time.Time
+}
+
+type InspectedPod struct {
+	Name            string
+	Namespace       string
+	Phase           string
+	NodeName        string
+	Containers      []string
+	ReadyContainers int32
+	TotalContainers int32
+	Restarts        int32
+	StartTime       time.Time
+}
+
+type InspectedEvent struct {
+	Type           string
+	Reason         string
+	Message        string
+	Namespace      string
+	Kind           string
+	Name           string
+	Count          int
+	FirstTimestamp time.Time
+	LastTimestamp  time.Time
+}
+
+type InspectedLog struct {
+	PodName     string
+	Namespace   string
+	Container   string
+	Content     string
+	Truncated   bool
+	CollectedAt time.Time
+}
+
 func (c ExecuteCommand) Kind() string {
 	switch {
 	case c.ArgoSync != nil:
@@ -422,6 +479,8 @@ func (c ExecuteCommand) Kind() string {
 		return "scale_workload"
 	case c.RunDriftScan != nil:
 		return "run_drift_scan"
+	case c.InspectResource != nil:
+		return "inspect_resource"
 	default:
 		return ""
 	}
@@ -442,6 +501,8 @@ func (c ExecuteCommand) InferRequiredCapability() Capability {
 		return CapabilityKubernetesScale
 	case "run_drift_scan":
 		return CapabilityObserve
+	case "inspect_resource":
+		return CapabilityObserve
 	default:
 		return CapabilityObserve
 	}
@@ -461,6 +522,7 @@ func (c ExecuteCommand) Validate() error {
 		c.RestartWorkload != nil,
 		c.ScaleWorkload != nil,
 		c.RunDriftScan != nil,
+		c.InspectResource != nil,
 	} {
 		if present {
 			count++
@@ -497,6 +559,7 @@ func (c ExecuteCommand) ExecutionSpec() (ExecutionSpec, error) {
 		RestartWorkload:     c.RestartWorkload,
 		ScaleWorkload:       c.ScaleWorkload,
 		RunDriftScan:        c.RunDriftScan,
+		InspectResource:     c.InspectResource,
 	}, nil
 }
 
@@ -551,6 +614,7 @@ func (c ExecuteCommand) Verify(now time.Time) error {
 		RestartWorkload:     c.RestartWorkload,
 		ScaleWorkload:       c.ScaleWorkload,
 		RunDriftScan:        c.RunDriftScan,
+		InspectResource:     c.InspectResource,
 	}.InferRequiredCapability()
 	if spec.RequiredCapability != inferred {
 		return fmt.Errorf("required capability %q does not match command kind %q", spec.RequiredCapability, c.Kind())

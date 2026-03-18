@@ -331,6 +331,7 @@ func fromProtoExecuteCommand(command *agentv1.ExecuteCommand) *domain.ExecuteCom
 		RestartWorkload:     fromProtoRestartWorkloadCommand(command.RestartWorkload),
 		ScaleWorkload:       fromProtoScaleWorkloadCommand(command.ScaleWorkload),
 		RunDriftScan:        fromProtoRunDriftScanCommand(command.RunDriftScan),
+		InspectResource:     fromProtoInspectResourceCommand(command.InspectResource),
 	}
 }
 
@@ -352,6 +353,7 @@ func toProtoExecuteCommand(command *domain.ExecuteCommand) *agentv1.ExecuteComma
 		RestartWorkload:     toProtoRestartWorkloadCommand(command.RestartWorkload),
 		ScaleWorkload:       toProtoScaleWorkloadCommand(command.ScaleWorkload),
 		RunDriftScan:        toProtoRunDriftScanCommand(command.RunDriftScan),
+		InspectResource:     toProtoInspectResourceCommand(command.InspectResource),
 	}
 }
 
@@ -585,6 +587,36 @@ func fromProtoRunDriftScanCommand(command *agentv1.RunDriftScanCommand) *domain.
 		return nil
 	}
 	return &domain.RunDriftScanCommand{Scope: command.Scope}
+}
+
+func toProtoInspectResourceCommand(command *domain.InspectResourceCommand) *agentv1.InspectResourceCommand {
+	if command == nil {
+		return nil
+	}
+	return &agentv1.InspectResourceCommand{
+		Namespace:     command.Namespace,
+		Kind:          command.Kind,
+		Name:          command.Name,
+		Container:     command.Container,
+		TailLines:     command.TailLines,
+		IncludeEvents: command.IncludeEvents,
+		IncludeLogs:   command.IncludeLogs,
+	}
+}
+
+func fromProtoInspectResourceCommand(command *agentv1.InspectResourceCommand) *domain.InspectResourceCommand {
+	if command == nil {
+		return nil
+	}
+	return &domain.InspectResourceCommand{
+		Namespace:     command.Namespace,
+		Kind:          command.Kind,
+		Name:          command.Name,
+		Container:     command.Container,
+		TailLines:     command.TailLines,
+		IncludeEvents: command.IncludeEvents,
+		IncludeLogs:   command.IncludeLogs,
+	}
 }
 
 func toProtoSourceRef(ref domain.SourceRef) agentv1.SourceRef {
