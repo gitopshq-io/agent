@@ -10,7 +10,7 @@ permissions:
   packages: write
 
 jobs:
-  release:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,36 +27,77 @@ jobs:
       - name: Run tests
         run: go test ./...
 
-      - name: Build release artifacts
+      - name: Render Helm chart
+        run: helm template gitopshq-agent ./charts/gitopshq-agent >/tmp/gitopshq-agent-chart.yaml
+
+  binaries:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build release artifact
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
           VERSION="${GITHUB_REF_NAME}"
-          CHART_VERSION="${VERSION#v}"
-          sed -i "s/^version: .*/version: ${CHART_VERSION}/" charts/gitopshq-agent/Chart.yaml
-          sed -i "s/^appVersion: .*/appVersion: ${CHART_VERSION}/" charts/gitopshq-agent/Chart.yaml
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
-            GOOS="${target%/*}"
-            GOARCH="${target#*/}"
-            BIN="gitopshq-agent-${VERSION}-${GOOS}-${GOARCH}"
-            GOOS="${GOOS}" GOARCH="${GOARCH}" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "dist/${BIN}" ./cmd/gitopshq-agent
-            tar -czf "dist/${BIN}.tar.gz" -C dist "${BIN}"
-            rm "dist/${BIN}"
-          done
+          GOOS="${{ matrix.goos }}"
+          GOARCH="${{ matrix.goarch }}"
+          BIN="gitopshq-agent-${VERSION}-${GOOS}-${GOARCH}"
+          GOOS="${GOOS}" GOARCH="${GOARCH}" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "dist/${BIN}" ./cmd/gitopshq-agent
+          tar -czf "dist/${BIN}.tar.gz" -C dist "${BIN}"
+          rm "dist/${BIN}"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package Helm chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version: .*/version: ${VERSION}/" charts/gitopshq-agent/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: ${VERSION}/" charts/gitopshq-agent/Chart.yaml
           helm package ./charts/gitopshq-agent --destination dist
 
-      - name: Publish GitHub release assets
-        uses: softprops/action-gh-release@v2
+      - name: Upload chart artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: dist/*
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          name: release-chart
+          path: dist/*.tgz
+          if-no-files-found: error
 
       - name: Login Helm to GHCR
         shell: bash
@@ -70,6 +111,22 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           helm push "dist/gitopshq-agent-${VERSION}.tgz" oci://ghcr.io/gitopshq-io/charts
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Extract Docker metadata
         id: meta
@@ -87,3 +144,25 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    runs-on: ubuntu-latest
+    needs:
+      - verify
+      - binaries
+      - chart
+      - container
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
