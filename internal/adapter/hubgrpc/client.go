@@ -2,6 +2,7 @@ package hubgrpc
 
 import (
 	"context"
+	"time"
 
 	"github.com/gitopshq-io/agent/internal/domain"
 	cfgpkg "github.com/gitopshq-io/agent/internal/platform/config"
@@ -10,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -69,6 +71,11 @@ func (c *Client) dial() (*grpc.ClientConn, error) {
 		c.cfg.Address,
 		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(agentv1.JSONCodecName)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                5 * time.Second,
+			Timeout:             3 * time.Second,
+			PermitWithoutStream: true,
+		}),
 	)
 }
 
