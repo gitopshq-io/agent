@@ -22,6 +22,8 @@ import (
 	cfgpkg "github.com/gitopshq-io/agent/internal/platform/config"
 	"github.com/gitopshq-io/agent/internal/port"
 	"github.com/gitopshq-io/agent/internal/usecase"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func main() {
@@ -132,6 +134,21 @@ func main() {
 		if err == nil || errors.Is(err, context.Canceled) {
 			return
 		}
+		if cfg.Hub.RegistrationToken != "" && shouldBootstrapWithRegistrationToken(err) {
+			slog.Warn("persisted agent identity was rejected by hub; attempting re-registration", "error", err)
+			resp, regErr := register.Run(ctx, cfg.Hub.RegistrationToken, cluster)
+			if regErr != nil {
+				slog.Error("agent re-registration failed", "error", regErr)
+			} else {
+				if resp.StatusInterval > 0 {
+					statusInterval = resp.StatusInterval
+					state.ApplyConfigUpdate(domain.ConfigUpdate{StatusInterval: statusInterval})
+				}
+				slog.Info("agent re-registered after identity rejection", "clusterId", resp.ClusterID, "identityStore", cfg.Identity.Mode, "identityLocation", identityLocation)
+				backoff = time.Second
+				continue
+			}
+		}
 		slog.Warn("agent session ended; reconnecting", "error", err, "backoff", backoff.String())
 		select {
 		case <-ctx.Done():
@@ -142,6 +159,13 @@ func main() {
 			backoff *= 2
 		}
 	}
+}
+
+func shouldBootstrapWithRegistrationToken(err error) bool {
+	if err == nil {
+		return false
+	}
+	return status.Code(err) == codes.Unauthenticated
 }
 
 func parseCapabilities(values []string) []domain.Capability {
