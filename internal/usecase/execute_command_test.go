@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,14 +18,22 @@ func (c fakeClock) Now() time.Time {
 }
 
 type fakeExecutor struct {
-	called bool
-	last   domain.ExecuteCommand
-	result domain.CommandResult
+	called     bool
+	last       domain.ExecuteCommand
+	result     domain.CommandResult
+	err        error
+	panicValue any
 }
 
 func (e *fakeExecutor) Execute(_ context.Context, cmd domain.ExecuteCommand) (domain.CommandResult, error) {
 	e.called = true
 	e.last = cmd
+	if e.panicValue != nil {
+		panic(e.panicValue)
+	}
+	if e.err != nil {
+		return domain.CommandResult{}, e.err
+	}
 	return e.result, nil
 }
 
@@ -78,6 +87,69 @@ func TestExecuteCommandRunExecutesAllowedCommand(t *testing.T) {
 	}
 	if result.Status != domain.CommandStatusCompleted {
 		t.Fatalf("expected completed status, got %q", result.Status)
+	}
+	if result.CommandID != command.CommandID {
+		t.Fatalf("expected command id %q, got %q", command.CommandID, result.CommandID)
+	}
+	if result.Timestamp.IsZero() {
+		t.Fatal("expected timestamp to be populated")
+	}
+}
+
+func TestExecuteCommandRunConvertsExecutorErrorToFailedResult(t *testing.T) {
+	clock := fakeClock{current: time.Date(2026, 3, 18, 11, 0, 0, 0, time.UTC)}
+	executor := &fakeExecutor{err: errors.New("apply manifest failed")}
+	command := domain.ExecuteCommand{
+		CommandID:          "cmd-1",
+		RequiredCapability: domain.CapabilityDirectDeploy,
+		ExpiresAt:          time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC),
+		ApplyManifestBundle: &domain.ApplyManifestBundleCommand{
+			Source: domain.SourceRef{Type: "oci", URL: "oci://example.com/org/bundle"},
+		},
+	}
+	if err := command.EnsureSpecHash(); err != nil {
+		t.Fatalf("EnsureSpecHash() error = %v", err)
+	}
+
+	result, err := ExecuteCommand{Executor: executor, Clock: clock}.Run(context.Background(), command, domain.NewCapabilitySet([]domain.Capability{domain.CapabilityDirectDeploy}))
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Status != domain.CommandStatusFailed {
+		t.Fatalf("expected failed status, got %q", result.Status)
+	}
+	if result.Error != "apply manifest failed" {
+		t.Fatalf("expected propagated executor error, got %q", result.Error)
+	}
+	if result.CommandID != command.CommandID {
+		t.Fatalf("expected command id %q, got %q", command.CommandID, result.CommandID)
+	}
+	if result.Timestamp.IsZero() {
+		t.Fatal("expected timestamp to be populated")
+	}
+}
+
+func TestExecuteCommandRunRecoversExecutorPanic(t *testing.T) {
+	clock := fakeClock{current: time.Date(2026, 3, 18, 11, 0, 0, 0, time.UTC)}
+	executor := &fakeExecutor{panicValue: "boom"}
+	command := domain.ExecuteCommand{
+		CommandID: "cmd-1",
+		ExpiresAt: time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC),
+		ArgoSync:  &domain.ArgoSyncCommand{Application: "payments"},
+	}
+	if err := command.EnsureSpecHash(); err != nil {
+		t.Fatalf("EnsureSpecHash() error = %v", err)
+	}
+
+	result, err := ExecuteCommand{Executor: executor, Clock: clock}.Run(context.Background(), command, domain.NewCapabilitySet([]domain.Capability{domain.CapabilityArgoCDWrite}))
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Status != domain.CommandStatusFailed {
+		t.Fatalf("expected failed status, got %q", result.Status)
+	}
+	if result.Error != "command execution panicked: boom" {
+		t.Fatalf("expected recovered panic message, got %q", result.Error)
 	}
 	if result.CommandID != command.CommandID {
 		t.Fatalf("expected command id %q, got %q", command.CommandID, result.CommandID)

@@ -13,16 +13,23 @@ type ExecuteCommand struct {
 	Clock    port.Clock
 }
 
-func (u ExecuteCommand) Run(ctx context.Context, cmd domain.ExecuteCommand, capabilities domain.CapabilitySet) (domain.CommandResult, error) {
+func (u ExecuteCommand) Run(ctx context.Context, cmd domain.ExecuteCommand, capabilities domain.CapabilitySet) (result domain.CommandResult, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result = failedCommandResult(cmd.CommandID, fmt.Sprintf("command execution panicked: %v", recovered), u.Clock)
+			err = nil
+		}
+	}()
+
 	if err := cmd.Verify(now(u.Clock)); err != nil {
 		return failedCommandResult(cmd.CommandID, err.Error(), u.Clock), nil
 	}
 	if !capabilities.Has(cmd.RequiredCapability) {
 		return failedCommandResult(cmd.CommandID, fmt.Sprintf("command requires capability %q", cmd.RequiredCapability), u.Clock), nil
 	}
-	result, err := u.Executor.Execute(ctx, cmd)
+	result, err = u.Executor.Execute(ctx, cmd)
 	if err != nil {
-		return domain.CommandResult{}, err
+		return failedCommandResult(cmd.CommandID, err.Error(), u.Clock), nil
 	}
 	if result.Timestamp.IsZero() {
 		result.Timestamp = now(u.Clock)
