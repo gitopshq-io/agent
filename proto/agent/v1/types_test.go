@@ -50,3 +50,20 @@ func TestExecuteCommandVerifyRejectsSpecHashMismatch(t *testing.T) {
 		t.Fatal("expected spec hash mismatch to be rejected")
 	}
 }
+
+func TestExecuteCommandArgoDeleteInfersDeleteCapability(t *testing.T) {
+	cmd := &ExecuteCommand{
+		CommandID:  "cmd-delete-1",
+		ExpiresAt:  time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC),
+		ArgoDelete: &ArgoDeleteCommand{Application: "payments", Namespace: "argocd"},
+	}
+	if err := cmd.EnsureSpecHash(); err != nil {
+		t.Fatalf("EnsureSpecHash() error = %v", err)
+	}
+	if got, want := cmd.Kind(), "argo_delete"; got != want {
+		t.Fatalf("Kind() = %q, want %q", got, want)
+	}
+	if got, want := cmd.RequiredCapability, CapabilityArgoCDDelete; got != want {
+		t.Fatalf("RequiredCapability = %q, want %q", got, want)
+	}
+}

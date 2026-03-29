@@ -50,7 +50,14 @@ func main() {
 	normalizedArgoServer := argocd.NormalizeServerURL(cfg.ArgoCD.ServerURL, cfg.ArgoCD.Insecure)
 	switch {
 	case normalizedArgoServer == "":
-		slog.Info("argocd integration disabled", "reason", "GITOPSHQ_ARGOCD_SERVER is empty", "capabilityEnabled", hasCapability(cluster.Capabilities, domain.CapabilityArgoCDRead) || hasCapability(cluster.Capabilities, domain.CapabilityArgoCDWrite))
+		slog.Info(
+			"argocd integration disabled",
+			"reason", "GITOPSHQ_ARGOCD_SERVER is empty",
+			"capabilityEnabled",
+			hasCapability(cluster.Capabilities, domain.CapabilityArgoCDRead) ||
+				hasCapability(cluster.Capabilities, domain.CapabilityArgoCDWrite) ||
+				hasCapability(cluster.Capabilities, domain.CapabilityArgoCDDelete),
+		)
 	case cfg.ArgoCD.Token == "":
 		slog.Warn("argocd integration is enabled without a token", "server", normalizedArgoServer, "rawServer", cfg.ArgoCD.ServerURL, "insecure", cfg.ArgoCD.Insecure)
 	default:

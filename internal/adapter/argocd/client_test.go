@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gitopshq-io/agent/internal/domain"
 )
 
 func TestNormalizeServerURL(t *testing.T) {
@@ -133,5 +135,47 @@ func TestCollectApplicationsFailsWhenResponseTooLarge(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "response exceeded") {
 		t.Fatalf("CollectApplications() error = %v, want size limit error", err)
+	}
+}
+
+func TestExecuteArgoDeleteUsesDeleteEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Method, http.MethodDelete; got != want {
+			t.Fatalf("request method = %q, want %q", got, want)
+		}
+		if got, want := r.URL.Path, "/api/v1/applications/payments"; got != want {
+			t.Fatalf("request path = %q, want %q", got, want)
+		}
+		if got := r.URL.Query().Get("appNamespace"); got != "devops" {
+			t.Fatalf("appNamespace query = %q, want %q", got, "devops")
+		}
+		if got := r.URL.Query().Get("cascade"); got != "true" {
+			t.Fatalf("cascade query = %q, want %q", got, "true")
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
+			t.Fatalf("authorization header = %q, want %q", got, "Bearer test-token")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := &Client{
+		baseURL: server.URL,
+		token:   "test-token",
+		http:    server.Client(),
+	}
+	result, err := client.Execute(context.Background(), domain.ExecuteCommand{
+		CommandID: "cmd-delete-1",
+		ArgoDelete: &domain.ArgoDeleteCommand{
+			Application: "payments",
+			Namespace:   "devops",
+			Cascade:     true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Status != domain.CommandStatusCompleted {
+		t.Fatalf("result.Status = %q, want %q", result.Status, domain.CommandStatusCompleted)
 	}
 }

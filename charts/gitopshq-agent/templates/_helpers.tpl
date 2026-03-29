@@ -44,6 +44,9 @@
 {{- if .Values.capabilities.argocdWrite -}}
 {{- $caps = append $caps "argocd.write" -}}
 {{- end -}}
+{{- if .Values.capabilities.argocdDelete -}}
+{{- $caps = append $caps "argocd.delete" -}}
+{{- end -}}
 {{- if .Values.capabilities.directDeploy -}}
 {{- $caps = append $caps "deploy.direct" -}}
 {{- end -}}

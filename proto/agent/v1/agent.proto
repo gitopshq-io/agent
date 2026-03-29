@@ -229,6 +229,12 @@ message ArgoRollbackCommand {
   bool prune = 4;
 }
 
+message ArgoDeleteCommand {
+  string application = 1;
+  string namespace = 2;
+  bool cascade = 3;
+}
+
 message DeployHelmReleaseCommand {
   string release_name = 1;
   string namespace = 2;
@@ -291,6 +297,7 @@ message ExecuteCommand {
     ScaleWorkloadCommand scale_workload = 16;
     RunDriftScanCommand run_drift_scan = 17;
     InspectResourceCommand inspect_resource = 18;
+    ArgoDeleteCommand argo_delete = 19;
   }
 }
 

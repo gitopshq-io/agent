@@ -325,6 +325,7 @@ func fromProtoExecuteCommand(command *agentv1.ExecuteCommand) *domain.ExecuteCom
 		RequestedBy:         command.RequestedBy,
 		ArgoSync:            fromProtoArgoSyncCommand(command.ArgoSync),
 		ArgoRollback:        fromProtoArgoRollbackCommand(command.ArgoRollback),
+		ArgoDelete:          fromProtoArgoDeleteCommand(command.ArgoDelete),
 		DeployHelmRelease:   fromProtoDeployHelmReleaseCommand(command.DeployHelmRelease),
 		ApplyKustomize:      fromProtoApplyKustomizeCommand(command.ApplyKustomize),
 		ApplyManifestBundle: fromProtoApplyManifestBundleCommand(command.ApplyManifestBundle),
@@ -347,6 +348,7 @@ func toProtoExecuteCommand(command *domain.ExecuteCommand) *agentv1.ExecuteComma
 		RequestedBy:         command.RequestedBy,
 		ArgoSync:            toProtoArgoSyncCommand(command.ArgoSync),
 		ArgoRollback:        toProtoArgoRollbackCommand(command.ArgoRollback),
+		ArgoDelete:          toProtoArgoDeleteCommand(command.ArgoDelete),
 		DeployHelmRelease:   toProtoDeployHelmReleaseCommand(command.DeployHelmRelease),
 		ApplyKustomize:      toProtoApplyKustomizeCommand(command.ApplyKustomize),
 		ApplyManifestBundle: toProtoApplyManifestBundleCommand(command.ApplyManifestBundle),
@@ -455,6 +457,28 @@ func fromProtoArgoRollbackCommand(command *agentv1.ArgoRollbackCommand) *domain.
 		Namespace:   command.Namespace,
 		ID:          command.ID,
 		Prune:       command.Prune,
+	}
+}
+
+func toProtoArgoDeleteCommand(command *domain.ArgoDeleteCommand) *agentv1.ArgoDeleteCommand {
+	if command == nil {
+		return nil
+	}
+	return &agentv1.ArgoDeleteCommand{
+		Application: command.Application,
+		Namespace:   command.Namespace,
+		Cascade:     command.Cascade,
+	}
+}
+
+func fromProtoArgoDeleteCommand(command *agentv1.ArgoDeleteCommand) *domain.ArgoDeleteCommand {
+	if command == nil {
+		return nil
+	}
+	return &domain.ArgoDeleteCommand{
+		Application: command.Application,
+		Namespace:   command.Namespace,
+		Cascade:     command.Cascade,
 	}
 }
 

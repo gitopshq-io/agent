@@ -16,6 +16,7 @@ const (
 	CapabilityDiagnosticsRead   Capability = "diagnostics.read"
 	CapabilityArgoCDRead        Capability = "argocd.read"
 	CapabilityArgoCDWrite       Capability = "argocd.write"
+	CapabilityArgoCDDelete      Capability = "argocd.delete"
 	CapabilityDirectDeploy      Capability = "deploy.direct"
 	CapabilityKubernetesRestart Capability = "k8s.restart"
 	CapabilityKubernetesScale   Capability = "k8s.scale"
@@ -276,6 +277,7 @@ type ExecuteCommand struct {
 	RequestedBy         string                      `json:"requestedBy,omitempty"`
 	ArgoSync            *ArgoSyncCommand            `json:"argoSync,omitempty"`
 	ArgoRollback        *ArgoRollbackCommand        `json:"argoRollback,omitempty"`
+	ArgoDelete          *ArgoDeleteCommand          `json:"argoDelete,omitempty"`
 	DeployHelmRelease   *DeployHelmReleaseCommand   `json:"deployHelmRelease,omitempty"`
 	ApplyKustomize      *ApplyKustomizeCommand      `json:"applyKustomize,omitempty"`
 	ApplyManifestBundle *ApplyManifestBundleCommand `json:"applyManifestBundle,omitempty"`
@@ -320,6 +322,12 @@ type ArgoRollbackCommand struct {
 	Namespace   string `json:"namespace,omitempty"`
 	ID          int64  `json:"id"`
 	Prune       bool   `json:"prune,omitempty"`
+}
+
+type ArgoDeleteCommand struct {
+	Application string `json:"application"`
+	Namespace   string `json:"namespace,omitempty"`
+	Cascade     bool   `json:"cascade,omitempty"`
 }
 
 type DeployHelmReleaseCommand struct {
@@ -381,6 +389,8 @@ func (c *ExecuteCommand) Kind() string {
 		return "argo_sync"
 	case c.ArgoRollback != nil:
 		return "argo_rollback"
+	case c.ArgoDelete != nil:
+		return "argo_delete"
 	case c.DeployHelmRelease != nil:
 		return "deploy_helm_release"
 	case c.ApplyKustomize != nil:
@@ -408,6 +418,8 @@ func (c *ExecuteCommand) InferRequiredCapability() Capability {
 		return c.RequiredCapability
 	}
 	switch c.Kind() {
+	case "argo_delete":
+		return CapabilityArgoCDDelete
 	case "argo_sync", "argo_rollback":
 		return CapabilityArgoCDWrite
 	case "deploy_helm_release", "apply_kustomize", "apply_manifest_bundle":
@@ -436,6 +448,7 @@ func (c *ExecuteCommand) Validate() error {
 	for _, present := range []bool{
 		c.ArgoSync != nil,
 		c.ArgoRollback != nil,
+		c.ArgoDelete != nil,
 		c.DeployHelmRelease != nil,
 		c.ApplyKustomize != nil,
 		c.ApplyManifestBundle != nil,
@@ -459,6 +472,7 @@ type executeCommandSpec struct {
 	ExpiresAt           time.Time                   `json:"expiresAt"`
 	ArgoSync            *ArgoSyncCommand            `json:"argoSync,omitempty"`
 	ArgoRollback        *ArgoRollbackCommand        `json:"argoRollback,omitempty"`
+	ArgoDelete          *ArgoDeleteCommand          `json:"argoDelete,omitempty"`
 	DeployHelmRelease   *DeployHelmReleaseCommand   `json:"deployHelmRelease,omitempty"`
 	ApplyKustomize      *ApplyKustomizeCommand      `json:"applyKustomize,omitempty"`
 	ApplyManifestBundle *ApplyManifestBundleCommand `json:"applyManifestBundle,omitempty"`
@@ -487,6 +501,7 @@ func (c *ExecuteCommand) spec() (executeCommandSpec, error) {
 		ExpiresAt:           c.ExpiresAt.UTC(),
 		ArgoSync:            c.ArgoSync,
 		ArgoRollback:        c.ArgoRollback,
+		ArgoDelete:          c.ArgoDelete,
 		DeployHelmRelease:   c.DeployHelmRelease,
 		ApplyKustomize:      c.ApplyKustomize,
 		ApplyManifestBundle: c.ApplyManifestBundle,
@@ -554,6 +569,8 @@ func expectedRequiredCapability(c *ExecuteCommand) Capability {
 		return CapabilityObserve
 	}
 	switch c.Kind() {
+	case "argo_delete":
+		return CapabilityArgoCDDelete
 	case "argo_sync", "argo_rollback":
 		return CapabilityArgoCDWrite
 	case "deploy_helm_release", "apply_kustomize", "apply_manifest_bundle":

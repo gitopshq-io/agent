@@ -58,6 +58,7 @@ capabilities:
   diagnosticsRead: true
   argocdRead: true
   argocdWrite: false
+  argocdDelete: false
   directDeploy: false
   kubernetesRestart: false
   kubernetesScale: false

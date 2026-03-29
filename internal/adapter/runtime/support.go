@@ -71,7 +71,7 @@ type CommandRouter struct {
 
 func (e CommandRouter) Execute(ctx context.Context, cmd domain.ExecuteCommand) (domain.CommandResult, error) {
 	switch {
-	case cmd.ArgoSync != nil || cmd.ArgoRollback != nil:
+	case cmd.ArgoSync != nil || cmd.ArgoRollback != nil || cmd.ArgoDelete != nil:
 		if e.Argo != nil {
 			return e.Argo.Execute(ctx, cmd)
 		}

@@ -9,7 +9,7 @@ This repository is Apache 2.0 licensed and is intended to be published independe
 - Token-based registration and reconnecting session
 - Typed `Register` and `Connect` contract under `proto/agent/v1`
 - Readiness heartbeat, inventory, ArgoCD application snapshot, drift report
-- ArgoCD sync and rollback executor
+- ArgoCD sync, rollback, and app delete executor
 - Direct deploy adapters for `helm_oci`, `helm_git`, `kustomize_git`, and `manifest_git`
 - Kubernetes-backed credential sync with mirrored Secret reconciliation
 - Helm chart values aligned with hub address, capabilities, RBAC profile, direct deploy, credential sync, TLS, and proxy settings

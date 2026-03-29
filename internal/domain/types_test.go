@@ -93,3 +93,20 @@ func TestExecuteCommandSpecDigestMatchesProtoCommand(t *testing.T) {
 		t.Fatalf("expected matching digests, got domain=%q proto=%q", domainDigest, protoDigest)
 	}
 }
+
+func TestExecuteCommandArgoDeleteInfersDeleteCapability(t *testing.T) {
+	command := ExecuteCommand{
+		CommandID:  "cmd-delete-1",
+		ExpiresAt:  time.Date(2026, 3, 18, 12, 0, 0, 0, time.UTC),
+		ArgoDelete: &ArgoDeleteCommand{Application: "payments", Namespace: "argocd"},
+	}
+	if err := command.EnsureSpecHash(); err != nil {
+		t.Fatalf("EnsureSpecHash() error = %v", err)
+	}
+	if got, want := command.Kind(), "argo_delete"; got != want {
+		t.Fatalf("Kind() = %q, want %q", got, want)
+	}
+	if got, want := command.RequiredCapability, CapabilityArgoCDDelete; got != want {
+		t.Fatalf("RequiredCapability = %q, want %q", got, want)
+	}
+}

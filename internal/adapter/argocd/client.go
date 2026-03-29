@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -205,6 +206,21 @@ func (c *Client) Execute(ctx context.Context, cmd domain.ExecuteCommand) (domain
 			"prune": cmd.ArgoRollback.Prune,
 		})
 		return c.do(ctx, cmd.CommandID, http.MethodPost, "/api/v1/applications/"+cmd.ArgoRollback.Application+"/rollback", body)
+	case cmd.ArgoDelete != nil:
+		path := "/api/v1/applications/" + url.PathEscape(cmd.ArgoDelete.Application)
+		params := url.Values{}
+		if ns := strings.TrimSpace(cmd.ArgoDelete.Namespace); ns != "" {
+			params.Set("appNamespace", ns)
+		}
+		if cmd.ArgoDelete.Cascade {
+			params.Set("cascade", "true")
+		} else {
+			params.Set("cascade", "false")
+		}
+		if encoded := params.Encode(); encoded != "" {
+			path += "?" + encoded
+		}
+		return c.do(ctx, cmd.CommandID, http.MethodDelete, path, nil)
 	default:
 		return domain.CommandResult{
 			CommandID: cmd.CommandID,
