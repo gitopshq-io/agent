@@ -89,7 +89,7 @@ spec:
             - name: GITOPSHQ_CLUSTER_ENVIRONMENT
               value: {{ .Values.agent.environment | quote }}
             - name: GITOPSHQ_AGENT_VERSION
-              value: {{ .Values.agent.version | quote }}
+              value: {{ default (include "gitopshq-agent.imageTag" .) .Values.agent.version | quote }}
             - name: GITOPSHQ_CAPABILITIES
               value: {{ include "gitopshq-agent.capabilities" . | quote }}
             - name: GITOPSHQ_ARGOCD_SERVER

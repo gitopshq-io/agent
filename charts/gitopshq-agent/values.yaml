@@ -40,6 +40,7 @@ agent:
   provider: ""
   region: ""
   environment: ""
+  # Leave empty to auto-report the image tag (fallback: chart appVersion).
   version: ""
   tokenPath: /var/lib/gitopshq/identity/agent.json
 
