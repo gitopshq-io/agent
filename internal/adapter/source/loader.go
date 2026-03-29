@@ -152,6 +152,15 @@ func LoadFiles(root string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if info, statErr := os.Stat(resolvedRoot); statErr == nil && !info.IsDir() {
+		content, readErr := os.ReadFile(resolvedRoot)
+		if readErr != nil {
+			return nil, readErr
+		}
+		return map[string]string{
+			filepath.Base(resolvedRoot): string(content),
+		}, nil
+	}
 	files := make(map[string]string)
 	err = filepath.WalkDir(resolvedRoot, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {

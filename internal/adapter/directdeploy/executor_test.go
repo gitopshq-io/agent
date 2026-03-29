@@ -115,6 +115,57 @@ metadata:
 	}
 }
 
+func TestExecutorApplyManifestBundleSingleFilePath(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "one.yaml"), []byte(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: one
+`), 0o600); err != nil {
+		t.Fatalf("write one.yaml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "two.yaml"), []byte(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: two
+`), 0o600); err != nil {
+		t.Fatalf("write two.yaml: %v", err)
+	}
+
+	runtime := &fakeRuntime{}
+	executor := Executor{
+		Runtime: runtime,
+		Sources: fakeSourceLoader{root: root},
+	}
+
+	result, err := executor.Execute(context.Background(), domain.ExecuteCommand{
+		CommandID: "cmd-single",
+		ApplyManifestBundle: &domain.ApplyManifestBundleCommand{
+			Namespace: "payments",
+			Source: domain.SourceRef{
+				Type:             "manifest_git",
+				URL:              "https://example.com/repo.git",
+				ResolvedRevision: "deadbeef",
+				Path:             "one.yaml",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Status != domain.CommandStatusCompleted {
+		t.Fatalf("expected completed status, got %q", result.Status)
+	}
+	if len(runtime.applied) != 1 {
+		t.Fatalf("expected 1 rendered manifest, got %d", len(runtime.applied))
+	}
+	if runtime.applied[0].Name != "one" {
+		t.Fatalf("expected to apply manifest name one, got %q", runtime.applied[0].Name)
+	}
+}
+
 func TestExecutorScaleWorkload(t *testing.T) {
 	runtime := &fakeRuntime{}
 	executor := Executor{

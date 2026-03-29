@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gitopshq-io/agent/internal/domain"
 	"github.com/gitopshq-io/agent/internal/port"
@@ -11,6 +12,7 @@ type HubMessageHandler struct {
 	Store          port.IdentityStore
 	Executor       ExecuteCommand
 	CredentialSync SyncCredentials
+	Applications   port.ApplicationObserver
 	State          *SessionState
 	Clock          port.Clock
 }
@@ -29,10 +31,26 @@ func (h HubMessageHandler) Handle(ctx context.Context, msg domain.HubMessage) ([
 		if err != nil {
 			return nil, err
 		}
-		return []domain.AgentMessage{
+		messages := []domain.AgentMessage{
 			ack,
 			{CommandResult: &result},
-		}, nil
+		}
+		if isArgoMutationCommand(msg.ExecuteCommand) && h.Applications != nil {
+			if apps, collectErr := h.Applications.CollectApplications(ctx); collectErr == nil && apps != nil {
+				if apps.Timestamp.IsZero() {
+					apps.Timestamp = now(h.Clock)
+				}
+				messages = append(messages, domain.AgentMessage{ApplicationStatus: apps})
+			} else if collectErr != nil {
+				slog.Warn(
+					"failed to collect argocd applications after command execution",
+					"commandId", msg.ExecuteCommand.CommandID,
+					"kind", msg.ExecuteCommand.Kind(),
+					"error", collectErr,
+				)
+			}
+		}
+		return messages, nil
 	case msg.SyncCredentials != nil:
 		if !h.State.Capabilities().Has(domain.CapabilityCredentialSync) {
 			result := domain.CredentialSyncResult{
@@ -92,4 +110,11 @@ func (h HubMessageHandler) Handle(ctx context.Context, msg domain.HubMessage) ([
 	default:
 		return nil, nil
 	}
+}
+
+func isArgoMutationCommand(cmd *domain.ExecuteCommand) bool {
+	if cmd == nil {
+		return false
+	}
+	return cmd.ArgoSync != nil || cmd.ArgoRollback != nil || cmd.ArgoDelete != nil
 }

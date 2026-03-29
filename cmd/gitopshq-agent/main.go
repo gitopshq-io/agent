@@ -127,6 +127,7 @@ func main() {
 		Store:          identityStore,
 		Executor:       usecase.ExecuteCommand{Executor: runtimeadapter.CommandRouter{Argo: argocdClient, Direct: directExecutor}, Clock: clock},
 		CredentialSync: usecase.SyncCredentials{Syncer: credentialsync.Syncer{Kubernetes: kubeClient, Targets: cfg.CredentialSync.Targets}, Clock: clock},
+		Applications:   argocdClient,
 		State:          state,
 		Clock:          clock,
 	}

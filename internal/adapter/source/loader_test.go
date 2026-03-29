@@ -84,3 +84,27 @@ func TestLoadFilesRejectsSymlinkedEntries(t *testing.T) {
 		t.Fatal("expected symlinked source entry to be rejected")
 	}
 }
+
+func TestLoadFilesFromSingleFileUsesBaseFilename(t *testing.T) {
+	root := t.TempDir()
+	filePath := filepath.Join(root, "single.yaml")
+	payload := []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: one\n")
+	if err := os.WriteFile(filePath, payload, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	files, err := LoadFiles(filePath)
+	if err != nil {
+		t.Fatalf("LoadFiles() error = %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("LoadFiles() returned %d files, want 1", len(files))
+	}
+	content, ok := files["single.yaml"]
+	if !ok {
+		t.Fatalf("LoadFiles() key = %#v, want single.yaml", files)
+	}
+	if content != string(payload) {
+		t.Fatalf("LoadFiles() content mismatch, got %q", content)
+	}
+}
