@@ -162,6 +162,16 @@ jobs:
           merge-multiple: true
           path: dist
 
+      - name: Generate source SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          format: cyclonedx
+          output: dist/sbom-source.cdx.json
+
+      - name: Add third-party notices
+        run: cp THIRD_PARTY_NOTICES.md dist/THIRD_PARTY_NOTICES.md
+
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:

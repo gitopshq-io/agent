@@ -1,89 +1,93 @@
 # GitOpsHQ Agent
 
-Open-source cluster agent for GitOpsHQ. The agent runs inside a Kubernetes cluster, registers with a token, keeps an outbound gRPC session to the hub, reports cluster and ArgoCD state, and executes typed commands that the hub authorizes.
+GitOpsHQ Agent is the open-source cluster-side component of GitOpsHQ. It runs in Kubernetes, establishes an outbound gRPC session to the hub, reports cluster state, and executes typed commands after local policy checks.
 
-This repository is Apache 2.0 licensed and is intended to be published independently from the hub repository.
+License: Apache 2.0
 
-## Current Scope
+## Project Links
 
-- Token-based registration and reconnecting session
-- Typed `Register` and `Connect` contract under `proto/agent/v1`
-- Readiness heartbeat, inventory, ArgoCD application snapshot, drift report
-- ArgoCD sync, rollback, and app delete executor
-- Direct deploy adapters for `helm_oci`, `helm_git`, `kustomize_git`, and `manifest_git`
-- Kubernetes-backed credential sync with mirrored Secret reconciliation
-- Helm chart values aligned with hub address, capabilities, RBAC profile, direct deploy, credential sync, TLS, and proxy settings
+- Organization profile: <https://github.com/gitopshq-io>
+- Repository: <https://github.com/gitopshq-io/agent>
+- Releases: <https://github.com/gitopshq-io/agent/releases>
+- Protocol contract: [`proto/agent/v1/agent.proto`](proto/agent/v1/agent.proto)
+- Helm chart (OCI): `oci://ghcr.io/gitopshq-io/charts/gitopshq-agent`
+- Container image: `ghcr.io/gitopshq-io/agent`
+- Security policy: [`SECURITY.md`](SECURITY.md)
+- Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+- Third-party notices: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 
-## Architecture
+## What It Does Today
 
-- `internal/domain` holds transport-agnostic models and command policy validation.
-- `internal/usecase` owns registration, session lifecycle, reporting, and inbound hub message handling.
-- `internal/port` defines the interfaces used inward by the use cases.
-- `internal/adapter` maps gRPC, ArgoCD, and runtime persistence concerns onto those ports.
-- `internal/platform` contains environment-driven bootstrap configuration.
+- Bootstrap and reconnect flow via `Register` + bidirectional `Connect` (`proto/agent/v1`)
+- Heartbeats, inventory snapshots, drift reports, and ArgoCD application status reporting
+- Typed command execution (no arbitrary shell):
+  - ArgoCD: sync, rollback, delete
+  - Direct deploy: Helm release, Kustomize, manifest bundle
+  - Kubernetes actions: restart workload, scale workload
+  - Diagnostics: drift scan, resource inspection (with optional events/logs)
+- Credential sync with mirrored Kubernetes Secret reconciliation
+- Hub-driven token rotation and runtime config updates
 
-## Security Model
+## Security Defaults
 
-- The hub remains authoritative for RBAC, approvals, and policy decisions.
-- The agent still performs local enforcement before execution: command capability, expiry, and immutable `spec_hash` must all pass.
-- Durable agent identity is stored locally as token plus cluster identity so reconnects keep emitting stable heartbeats. The Helm chart persists this by default in a Kubernetes Secret.
-- Direct deploy permissions are opt-in through chart RBAC and capability flags; the default chart remains read-only.
+- Outbound-only connection model (no inbound cluster tunnel required)
+- TLS verification enabled by default (`tls.insecure=true` is an explicit dev override)
+- Local command validation requires capability, `expiresAt`, and immutable `spec_hash`
+- Helm chart defaults to read-only RBAC (`rbac.profile=readonly`)
+- Durable identity persistence defaults to Kubernetes Secret (`persistence.type=secret`)
 
-## Helm Install
+## Install with Helm
+
+Use a release version from <https://github.com/gitopshq-io/agent/releases>. Example with the latest tagged release in this repo (`v0.1.3`):
 
 ```bash
+AGENT_VERSION=0.1.3
+
 helm upgrade --install gitopshq-agent oci://ghcr.io/gitopshq-io/charts/gitopshq-agent \
   --namespace gitopshq-system \
   --create-namespace \
-  --version 0.1.0 \
+  --version "${AGENT_VERSION}" \
   --set hub.address=agent.gitopshq.example:443 \
   --set registrationToken=replace-me
 ```
 
-Tagged releases publish both the container image and the Helm chart to GHCR. The chart reference used by the hub install command is `oci://ghcr.io/gitopshq-io/charts/gitopshq-agent`.
-
-For local development without TLS termination, explicitly opt into plaintext transport:
+Local development without TLS termination:
 
 ```bash
+AGENT_VERSION=0.1.3
+
 helm upgrade --install gitopshq-agent oci://ghcr.io/gitopshq-io/charts/gitopshq-agent \
   --namespace gitopshq-system \
   --create-namespace \
-  --version 0.1.0 \
+  --version "${AGENT_VERSION}" \
   --set hub.address=host.docker.internal:50051 \
   --set tls.insecure=true \
   --set registrationToken=replace-me
 ```
 
-Important chart values:
+Key chart values:
 
-- `hub.address`, `hub.statusIntervalSeconds`
+- `hub.address`, `hub.statusIntervalSeconds`, `registrationToken`
 - `agent.clusterName`, `agent.displayName`, `agent.provider`, `agent.region`, `agent.environment`
-- `persistence.*`
-- `rbac.profile`
-- `capabilities.*`
-- `credentialSync.mode`, `credentialSync.targets`
+- `capabilities.*`, `rbac.profile`
 - `argocd.*`
+- `credentialSync.mode`, `credentialSync.targets`
+- `diagnostics.allowedNamespaces`
 - `directDeploy.*`
-- `directDeploy.forceOwnership`
-- `tls.insecure`
-- `proxy.*`
+- `persistence.*`
+- `tls.insecure`, `proxy.*`
 
-Troubleshooting:
+## Troubleshooting
 
-- Agent logs are emitted as JSON to stdout. For a live view:
+- Stream logs:
   `kubectl logs -n gitopshq-system deploy/gitopshq-agent -f`
-- ArgoCD collection failures now appear as `failed to collect argocd applications`. Successful reads also log `collected argocd applications`.
-- On startup the agent logs whether ArgoCD integration is enabled, disabled, or missing a token, and shows both the raw and normalized ArgoCD server value.
-- If `argocd.server` is provided without `http://` or `https://`, the agent infers `http://` when `argocd.insecure=true` and `https://` otherwise. For plain in-cluster Bitnami installs, `http://argo-cd-server.<namespace>.svc.cluster.local` is the safest explicit value.
-- Registration tokens are one-time bootstrap tokens. After the first successful join, upgrades should reuse the persisted agent identity and no longer require `registrationToken`.
-- Default persistence mode is `secret`. Use `persistence.type=pvc` if you prefer a volume-backed identity file, or `persistence.enabled=false` for ephemeral dev/test installs.
-- Chart releases now default the agent image tag to the chart `appVersion` instead of `latest`, so upgrades pull the matching released image instead of reusing a cached stale image.
-- Upgrading from older chart revisions that used `emptyDir` requires one final upgrade with a fresh `registrationToken` so the new persistent identity store can be seeded.
+- If persisted identity is missing and `registrationToken` is empty, startup fails by design.
+- If `argocd.server` has no scheme, the agent normalizes it to `http://` when `argocd.insecure=true`, otherwise `https://`.
 
 ## Local Development
 
 ```bash
-cd agent
 go test ./...
 go run ./cmd/gitopshq-agent
 ```
@@ -100,9 +104,7 @@ make docker-build
 
 ## Proto Sync
 
-The hub repository keeps a local copy of `proto/agent/v1` so it does not need a module dependency on the agent implementation repo.
-
-To sync the contract into the hub repository:
+The hub repository keeps a copy of `proto/agent/v1`.
 
 ```bash
 make sync-proto HUB_REPO=/path/to/gitopshq.io
