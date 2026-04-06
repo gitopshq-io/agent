@@ -155,6 +155,9 @@ jobs:
       - chart
       - container
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
@@ -163,7 +166,7 @@ jobs:
           path: dist
 
       - name: Generate source SBOM (CycloneDX)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0 – pinned by SHA after supply chain incident
         with:
           scan-type: fs
           format: cyclonedx
