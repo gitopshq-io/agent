@@ -45,7 +45,7 @@ agent:
   tokenPath: /var/lib/gitopshq/identity/agent.json
 
 hub:
-  address: gitopshq.example.internal:50051
+  address: hub.gitopshq.io:443
   statusIntervalSeconds: 30
 
 registrationToken: ""

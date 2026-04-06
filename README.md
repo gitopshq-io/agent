@@ -42,25 +42,21 @@ License: Apache 2.0
 Use a release version from <https://github.com/gitopshq-io/agent/releases>. Example with the latest tagged release in this repo (`v0.1.3`):
 
 ```bash
-AGENT_VERSION=0.1.3
-
 helm upgrade --install gitopshq-agent oci://ghcr.io/gitopshq-io/charts/gitopshq-agent \
   --namespace gitopshq-system \
   --create-namespace \
-  --version "${AGENT_VERSION}" \
-  --set hub.address=agent.gitopshq.example:443 \
+  --version latest \
+  --set hub.address=hub.gitopshq.io:443 \
   --set registrationToken=replace-me
 ```
 
 Local development without TLS termination:
 
 ```bash
-AGENT_VERSION=0.1.3
-
 helm upgrade --install gitopshq-agent oci://ghcr.io/gitopshq-io/charts/gitopshq-agent \
   --namespace gitopshq-system \
   --create-namespace \
-  --version "${AGENT_VERSION}" \
+  --version latest \
   --set hub.address=host.docker.internal:50051 \
   --set tls.insecure=true \
   --set registrationToken=replace-me
