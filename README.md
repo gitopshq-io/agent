@@ -39,7 +39,7 @@ License: Apache 2.0
 
 ## Install with Helm
 
-Use a release version from <https://github.com/gitopshq-io/agent/releases>. Example with the latest tagged release in this repo (`v0.1.5`):
+Use a release version from <https://github.com/gitopshq-io/agent/releases>. Example with the latest tagged release in this repo (`v0.1.7`):
 
 ```bash
 helm upgrade --install gitopshq-agent oci://ghcr.io/gitopshq-io/charts/gitopshq-agent \
